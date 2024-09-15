@@ -1,0 +1,12 @@
+blockchains:
+  hello:
+    module: main
+    config:
+      blockstrategy:
+        mininterblockinterval: 25
+compile:
+  rellVersion: 0.13.1
+test:
+  modules:
+    - test.arithmetic_test
+    - test.data_test

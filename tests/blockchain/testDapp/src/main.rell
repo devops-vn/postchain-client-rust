@@ -1,0 +1,138 @@
+module;
+query test_boolean(arg1: boolean) = true;
+query test_number(arg1: integer) = arg1;
+query test_decimal(arg1: decimal) = arg1;
+query test_string(arg1: text) = arg1;
+query test_byte_array(arg1: byte_array) = arg1;
+query test_json(arg1: json) = arg1;
+query test_null() = null;
+query test_array(arg1: list<text>) = arg1;
+query test_set(arg1: set<text>) = arg1;
+query test_string_key_map(arg1: map<text,text>) = arg1;
+
+query test_non_string_key_map(arg1: map<integer,text>) = arg1;
+query test_big_integer(arg1: big_integer) = arg1;
+query test_without_args() = true;
+
+query test_named_tuple(arg1: (x: integer, y: integer)) = arg1;
+query test_unnamed_tuple(arg1: (integer, integer)) = arg1;
+query test_single_tuple(arg1: (x: integer,)) = arg1;
+
+query test_type_as_arg_name(type: text) = type;
+query test_nullable_struct(arg1: nullableValueStruct) = arg1;
+
+enum sample_enum {
+    A,
+    B,
+    C
+}
+query test_enum(x: sample_enum) = x.value;
+
+query test_struct(x: intValueStruct) = x;
+
+query test_map() {
+    var dictionary = map<text, text>();
+    dictionary["sample_key"] = "sample_value";
+    return dictionary;
+}
+
+query test_map_with_bytearray_key() {
+    var dictionary = map<byte_array, text>();
+    val sample_key: byte_array = x"0373599a61cc6b3bc02a78c34313e1737ae9cfd56b9bb24360b437d469efdf3b15";
+    dictionary[sample_key] = "sample_value";
+    return dictionary;
+}
+
+entity boolValueTester {
+    bool: boolean;
+}
+
+entity intValueTester {
+    int: integer;
+}
+
+entity bigIntValueTester {
+    bigInt: big_integer;
+}
+
+struct nullableValueStruct {
+    int: integer?;
+}
+struct intValueStruct {
+    int: integer;
+}
+
+entity multiValueTester {
+    int: integer;
+    string1: text;
+    string2: text;
+}
+struct multiValueStruct {
+    int: integer;
+    string1: text;
+    string2: text;
+}
+
+struct mapValueStruct {
+    map1:  map<text,text>;
+}
+struct nestedValueStruct {
+    multiStruct: multiValueStruct;
+    arrayExample: list<text>;
+}
+
+struct superNestedValueStruct {
+    arrayWithStruct: list<nestedValueStruct>;
+    intStruct: intValueStruct;
+    mapStruct: mapValueStruct;
+}
+operation setBoolean(bool: boolean) {
+    create boolValueTester(bool = bool);
+}
+
+operation setInteger(int: integer) {
+    create intValueTester(int = int);
+}
+
+operation setBigInteger(bigInt: big_integer) {
+    create bigIntValueTester(bigInt = bigInt);
+}
+
+operation setMultivalue(int: integer, string1: text, string2: text) {
+    create multiValueTester(int = int, string1 = string1, string2 = string2);
+}
+
+operation setEntityViaStruct(x: multiValueStruct) {
+    create multiValueTester(int = x.int, string1 = x.string1, string2 = x.string2);
+}
+
+operation nestedArguments(x: nestedValueStruct) {}
+
+operation setArray(arg: list<text>) {}
+
+operation setJson(arg: json){}
+
+operation setMap(arg: map<text,text>){}
+
+operation superNestedArguments(x: superNestedValueStruct){}
+
+struct s_blockchain_data {
+        skill_unlock_level: list<integer>;
+        hero_level_lookup: list<integer>;
+        player_level_lookup: list<integer>;
+        hero_level_bonus_lookup: list<decimal>;
+        blessing_rating_factor: map<text,decimal>;
+        item_rating_factor: map<text,decimal>;
+        blessing_gender_male_chance: decimal;
+        onboarding_map_blessing_to_fragments: map<text, list<text>>;
+        mutable season_claim_offset: integer;
+    }
+query test_complex_object(client_data: json,
+server_data: json,args: s_blockchain_data){
+    return "";
+}
+operation set_globals(
+client_data: json,
+server_data: json,
+s_blockchain_data
+){}

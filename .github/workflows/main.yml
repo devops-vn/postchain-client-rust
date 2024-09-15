@@ -1,0 +1,22 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - dev
+
+jobs:
+    setup_integration_tests_env:
+        name: Setup Integration Tests Env.
+        runs-on: ubuntu-latest
+        steps:
+            - uses: cargo-bins/cargo-binstall@main
+            
+            - name: Checkout
+              uses: actions/checkout@v4
+              with:
+                fetch-depth: 0
+            
+            - name: Run Integration Tests
+              run: cargo test -- --nocapture
+
