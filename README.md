@@ -22,9 +22,10 @@ $ cargo test -- --nocapture
 ```
 
 ##### [TODO]
-###### GTV ASN.1 encode/decode [x]
-###### GTV query [x]
-###### GTX transaction [_]
-###### Add more complex tests [_]
-###### Implement derive [_]
-###### Upload `postchain-client` crate to crates.io registry [_]
+###### GTV ASN.1 encode/decode [completed] (*)
+###### GTV query [completed] (*)
+###### GTX transaction [not implemented yet]
+###### Add more complex tests [not implemented yet]
+###### Derive [not implemented yet]
+
+###### (*) still requires additional testing and optimization.
