@@ -47,7 +47,7 @@ async fn queries_integration_test_success_cases() {
     let brid_info: (String, &RestClient) = if let Ok(val) = get_blockchain_rid {
         (val, &rc)
     } else {
-        let brid = "D2C31049EC6B196FA7B3AF66025E5AA0844A5F53C35ED82A27C8571828FEF8F6".to_string();
+        let brid = "7A37DD331AC8FED64EEFCCA231B0F975DE7F4371CE5CA44105A5B117DF6DE251".to_string();
 
         rc = rest_client::RestClient {
             node_url: vec![POSTCHAIN_MULTI_NODE_API_URL],
