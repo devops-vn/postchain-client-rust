@@ -36,11 +36,17 @@ pub trait GTVParams<'a>: Clone {
     fn to_writer(&self, writer: &mut asn1::Writer) -> asn1::WriteResult;
 }
 
+pub fn write_explicit_element<T: asn1::Asn1Writable>(writer: &mut asn1::Writer, val: &T, tag: u32)
+  -> asn1::WriteResult {
+  let tag = asn1::explicit_tag(tag);
+  writer.write_tlv(tag, |dest| asn1::Writer::new(dest).write_element(val))
+}
+
 #[allow(unused_assignments)]
 impl<'a> GTVParams<'a> for Params<'a> {
     fn to_writer(&self, writer: &mut asn1::Writer) -> asn1::WriteResult {
         if let Params::Array(val) = self {
-            writer.write_explicit_element(
+            write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
                     for v in val {
                         v.to_writer(writer)?;
@@ -51,7 +57,7 @@ impl<'a> GTVParams<'a> for Params<'a> {
             )?;
             Ok(())
         } else if let Params::Dict(val) = self {
-            writer.write_explicit_element(
+            write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
                     for v in val {
                         writer.write_element(&asn1::SequenceWriter::new(
@@ -96,10 +102,10 @@ impl<'a> GTVParams<'a> for Params<'a> {
 
 pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
   asn1::write(|writer| {
-    writer.write_explicit_element(
+    write_explicit_element(writer,
       &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
           
-          writer.write_explicit_element(
+          write_explicit_element(writer,
             &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
 
               // Blockchain RID
@@ -107,7 +113,7 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
                 &hex::decode(tx.blockchain_rid).unwrap()))?;
 
               // Operations and args
-              writer.write_explicit_element(
+              write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
  
                   encode_tx_body(writer, &Some(&mut tx.operations.clone()))?;      
@@ -117,7 +123,7 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
 
 
               // Signers pubkeys
-              writer.write_explicit_element(
+              write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
                 
                   for sig in &tx.signers {
@@ -131,7 +137,7 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
           }), 5)?;
 
           // Signatures
-          writer.write_explicit_element(
+          write_explicit_element(writer,
             &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
              
               for sig in &tx.signatures {
@@ -153,7 +159,7 @@ pub fn encode<'a>(
     query_args: Option<&'a mut Vec<(&str, Params<'_>)>>,
 ) -> Vec<u8> {
     asn1::write(|writer| {
-        writer.write_explicit_element(
+        write_explicit_element(writer,
             &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
                 writer.write_element(&Choice::UTF8STRING(asn1::Utf8String::new(query_type)))?;
                 encode_body(writer, &query_args)?;
@@ -172,14 +178,14 @@ fn encode_tx_body<'a>(writer: &mut asn1::Writer,
     if let Some(q_args) = &query_args {
       let q_args_as_slice = q_args.iter().as_slice();
       for (q_type, q_args) in q_args_as_slice {
-      writer.write_explicit_element(
+      write_explicit_element(writer,
           &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
 
             // Operation name
-            writer.write_explicit_element(&asn1::Utf8String::new(&q_type), 2)?;
+            write_explicit_element(writer,&asn1::Utf8String::new(&q_type), 2)?;
 
             // Operation args
-            writer.write_explicit_element(
+            write_explicit_element(writer,
           &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
               q_args.to_writer(writer)?;
               Ok(())
@@ -197,7 +203,7 @@ fn encode_tx_body<'a>(writer: &mut asn1::Writer,
 fn encode_body<'a>(writer: &mut asn1::Writer,
   query_args: &Option<&'a mut Vec<(&str, Params<'_>)>>)
   -> asn1::WriteResult {
-  writer.write_explicit_element(
+  write_explicit_element(writer,
       &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
           if let Some(q_args) = &query_args {
               let q_args_as_slice = q_args.iter().as_slice();
