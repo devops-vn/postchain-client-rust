@@ -21,6 +21,17 @@ pub enum Choice<'a> {
     BIGINTEGER(asn1::BigInt<'a>),
 }
 
+#[derive(Debug)]
+pub enum GTVType {
+    Null = 0,
+    ByteArray = 1,
+    String = 2,
+    Integer = 3,
+    Dict = 4,
+    Array = 5,
+    BigInteger = 6,
+}
+
 pub trait GTVParams<'a>: Clone {
     fn to_writer(&self, writer: &mut asn1::Writer) -> asn1::WriteResult;
 }
@@ -239,7 +250,7 @@ fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<
         }
         Choice::DICT(seq) => {
           let res: Result<Params, ParseError> = seq.parse(|parser| {
-            let mut btree_map_new: BTreeMap<String, Params> = BTreeMap::new();
+            let mut btree_map_new: BTreeMap<&'a str, Params> = BTreeMap::new();
             decode_sequence_dict(parser, &mut btree_map_new);
             Ok(Params::Dict(btree_map_new))
           });
@@ -252,20 +263,20 @@ fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<
   }
 }
 
-fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeMap<String, Params<'a>>) {
+fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeMap<&'a str, Params<'a>>) {
   loop {
       let seq = parser.read_element::<asn1::Sequence>();
       if let Err(_) = seq {
           break;
       }
-      let res: Result<(String, Params), ParseError> = seq.unwrap().parse(|parser| {
+      let res: Result<(&'a str, Params), ParseError> = seq.unwrap().parse(|parser| {
         let key = parser.read_element::<asn1::Utf8String>()?;
         let val = Choice::parse(parser).unwrap();
 
         let op_val = match val {
           Choice::DICT(seq) => {
             let res: Result<Params, ParseError> = seq.parse(|parser| {
-              let mut btree_map_new: BTreeMap<String, Params> = BTreeMap::new();
+              let mut btree_map_new: BTreeMap<&'a str, Params> = BTreeMap::new();
               decode_sequence_dict(parser, &mut btree_map_new);
               Ok(Params::Dict(btree_map_new))
             });
@@ -283,12 +294,12 @@ fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeM
             decode_simple(val)      
         };
 
-        Ok((key.as_str().to_string(), op_val))
+        Ok((key.as_str(), op_val))
       });
 
-      let res = res.unwrap();
+      let res: (&'a str, Params<'_>) = res.unwrap();
 
-      btreemap.insert(res.0, res.1);
+      btreemap.insert(&res.0, res.1);
   }
 }
 
@@ -308,7 +319,7 @@ pub fn decode<'a>(data: &'a [u8]) -> Result<Params<'a>, ParseError> {
     if tag_num == 4 {
       let result = asn1::parse_single::<asn1::Explicit<asn1::Sequence, 4>>(data).unwrap();
       result.into_inner().parse(|parser| {
-        let mut btree_map_new: BTreeMap<String, Params> = BTreeMap::new();
+        let mut btree_map_new: BTreeMap<&str, Params> = BTreeMap::new();
         decode_sequence_dict(parser, &mut btree_map_new);
         Ok(Params::Dict(btree_map_new))
       })
@@ -329,6 +340,17 @@ pub fn decode_tx<'a>(data: &'a [u8]) -> Result<Params<'a>, ParseError> {
   decode(data)
 }
 
+pub fn encode_value(value: &Params) -> Vec<u8> {
+  asn1::write(|writer| {
+      value.to_writer(writer)?;
+      Ok(())
+  }).unwrap()
+}
+
+pub fn encode_value_hex_encode(value: &Params) -> String {
+  hex::encode(encode_value(value))
+}
+
 #[allow(dead_code)]
 fn assert_roundtrips<'a>(
   query_args: Option<&'a mut Vec<(&str, Params<'_>)>>,
@@ -338,6 +360,86 @@ fn assert_roundtrips<'a>(
       Ok(())
     });
     assert_eq!(hex::encode(result.unwrap()), expected_value);
+}
+
+#[allow(dead_code)]
+fn assert_roundtrips_value<'a>(
+  value: &Params<'a>,
+  expected_decode: &Params<'a>,
+  expected_value: &str) {
+    let encode_result = encode_value(&value);
+    assert_eq!(expected_value, hex::encode(encode_result.clone()));
+
+    let decode_result = decode(&encode_result).unwrap();
+    assert_eq!(expected_decode, &decode_result);
+} 
+
+#[test]
+fn gtv_encode_value_null() {
+  assert_roundtrips_value(&Params::Null, &Params::Null, "a0020500")
+}
+
+#[test]
+fn gtv_encode_value_boolean() {
+  assert_roundtrips_value(&Params::Boolean(true), &Params::Integer(1), "a303020101");
+  assert_roundtrips_value(&Params::Boolean(false), &Params::Integer(0),"a303020100")
+}
+
+#[test]
+fn gtv_encode_value_integer() {
+  assert_roundtrips_value(&Params::Integer(999), &Params::Integer(999), "a304020203e7")
+}
+
+#[test]
+fn gtv_encode_value_decimal() {
+  assert_roundtrips_value(&Params::Decimal(999.999), &Params::Text("999.999"), "a2090c073939392e393939")
+}
+
+#[test]
+fn gtv_encode_value_text() {
+  assert_roundtrips_value(&Params::Text("hello!"), &Params::Text("hello!"), "a2080c0668656c6c6f21")
+}
+
+#[test]
+fn gtv_encode_value_bytearray() {
+  assert_roundtrips_value(&Params::ByteArray(b"123456789"), &Params::ByteArray(b"123456789"), "a10b0409313233343536373839")
+}
+
+#[test]
+fn gtv_encode_value_array() {
+  let array = Params::Array(vec![
+          Params::Text("foo1"),
+          Params::Text("foo2"),
+      ]);
+  assert_roundtrips_value(&array, &array, "a5123010a2060c04666f6f31a2060c04666f6f32")
+}
+
+#[test]
+fn gtv_encode_value_dict() {
+  use std::collections::BTreeMap;
+  let mut data: BTreeMap<&str, Params> = BTreeMap::new();
+  let mut data1: BTreeMap<&str, Params> = BTreeMap::new();
+  let mut data2: BTreeMap<&str, Params> = BTreeMap::new();
+
+  data2.insert("foo1_1_1", Params::Integer(1000));
+
+  data1.insert("foo1_1", Params::Dict(data2));
+  data1.insert("foo1_2", Params::Text("hello!"));
+
+  data.insert("foo", Params::Text("bar"));
+  data.insert("foo1", Params::Dict(data1));
+
+  let dict = Params::Dict(data);
+  assert_roundtrips_value(&dict, &dict, "a450304e300c0c03666f6fa2050c03626172303e0c04666f6f31a4363034301e0c06666f6f315f31a414301230100c08666f6f315f315f31a304020203e830120c06666f6f315f32a2080c0668656c6c6f21")
+}
+
+#[test]
+fn gtv_encode_value_big_integer() {
+  use std::str::FromStr;
+
+  let max_i128: i128 = i128::MAX;
+  let data = num_bigint::BigInt::from_str(max_i128.to_string().as_str()).unwrap();
+  assert_roundtrips_value(&Params::BigInteger(data.clone()), &Params::BigInteger(data), "a61202107fffffffffffffffffffffffffffffff");
 }
 
 #[test]
@@ -435,9 +537,9 @@ fn gtv_test_sequence_with_array() {
 fn gtv_test_sequence_with_dict() {
   use std::collections::BTreeMap;
 
-  let mut params: BTreeMap<String, Params> = BTreeMap::new();
-  params.insert("foo".to_string(), Params::Text("bar"));
-  params.insert("foo1".to_string(), Params::Text("bar1"));
+  let mut params: BTreeMap<&str, Params> = BTreeMap::new();
+  params.insert("foo", Params::Text("bar"));
+  params.insert("foo1", Params::Text("bar1"));
 
   let data = &mut vec![("foo",  Params::Dict(params))];
 
@@ -449,18 +551,18 @@ fn gtv_test_sequence_with_dict() {
 fn gtv_test_sequence_with_nested_dict() {
   use std::collections::BTreeMap;
 
-  let mut dict1: BTreeMap<String, Params> = BTreeMap::new();
-  let mut dict2: BTreeMap<String, Params> = BTreeMap::new();
-  let dict3: BTreeMap<String, Params> = BTreeMap::new();
+  let mut dict1: BTreeMap<&str, Params> = BTreeMap::new();
+  let mut dict2: BTreeMap<&str, Params> = BTreeMap::new();
+  let dict3: BTreeMap<&str, Params> = BTreeMap::new();
 
-  dict1.insert("dict1_foo".to_string(), Params::Text("dict1_bar"));
+  dict1.insert("dict1_foo", Params::Text("dict1_bar"));
 
-  dict2.insert("dict2_foo".to_string(), Params::Text("dict2_bar"));
-  dict2.insert("dict2_foo1".to_string(), Params::Text("dict2_bar1"));
+  dict2.insert("dict2_foo", Params::Text("dict2_bar"));
+  dict2.insert("dict2_foo1", Params::Text("dict2_bar1"));
   
-  dict2.insert("dict3_empty_data".to_string(), Params::Dict(dict3));
+  dict2.insert("dict3_empty_data", Params::Dict(dict3));
 
-  dict1.insert("dict2_data".to_string(), Params::Dict(dict2));
+  dict1.insert("dict2_data", Params::Dict(dict2));
 
   let data = &mut vec![("foo",  Params::Dict(dict1))];
 
@@ -472,17 +574,17 @@ fn gtv_test_sequence_with_nested_dict() {
 fn gtv_test_sequence_with_nested_dict_array() {
   use std::collections::BTreeMap;
 
-  let mut dict1: BTreeMap<String, Params> = BTreeMap::new();
-  let mut dict2: BTreeMap<String, Params> = BTreeMap::new();
-  let mut dict3: BTreeMap<String, Params> = BTreeMap::new();
+  let mut dict1: BTreeMap<&str, Params> = BTreeMap::new();
+  let mut dict2: BTreeMap<&str, Params> = BTreeMap::new();
+  let mut dict3: BTreeMap<&str, Params> = BTreeMap::new();
 
-  dict2.insert("dict2_foo".to_string(), Params::Text("dict2_bar"));
-  dict3.insert("dict3_foo".to_string(), Params::Text("dict3_bar"));
+  dict2.insert("dict2_foo", Params::Text("dict2_bar"));
+  dict3.insert("dict3_foo", Params::Text("dict3_bar"));
 
   let array1 = vec![
     Params::Dict(dict2), Params::Dict(dict3)];
 
-  dict1.insert("array1".to_string(), Params::Array(array1));
+  dict1.insert("array1", Params::Array(array1));
 
   let data = &mut vec![("foo",  Params::Dict(dict1))];
 
@@ -546,8 +648,8 @@ fn gtv_test_simple_array() {
 #[test]
 fn gtv_test_simple_dict() {
   use std::collections::BTreeMap;
-  let mut data: BTreeMap<String, Params> = BTreeMap::new();
-  data.insert("foo".to_string(), Params::Text("bar"));
+  let mut data: BTreeMap<&str, Params> = BTreeMap::new();
+  data.insert("foo", Params::Text("bar"));
   assert_roundtrips_simple(Params::Dict(data), "a410300e300c0c03666f6fa2050c03626172");
 }
 
@@ -620,10 +722,10 @@ fn gtv_test_sequence_simple_array_decode() {
 
 #[test]
 fn gtv_test_sequence_simple_dict_decode() {
-  let mut data_btreemap: BTreeMap<String, Params> = BTreeMap::new();
+  let mut data_btreemap: BTreeMap<&str, Params> = BTreeMap::new();
 
-  data_btreemap.insert("foo".to_string(), Params::Text("bar"));
-  data_btreemap.insert("status".to_string(), Params::ByteArray("OK".as_bytes()));
+  data_btreemap.insert("foo", Params::Text("bar"));
+  data_btreemap.insert("status", Params::ByteArray("OK".as_bytes()));
 
   let data = Params::Dict(data_btreemap);
 
@@ -636,16 +738,16 @@ fn gtv_test_sequence_simple_dict_decode() {
 #[test]
 fn gtv_test_sequence_complex_mix_dict_array_decode() {
   use std::collections::BTreeMap;
-  let mut data_btreemap: BTreeMap<String, Params> = BTreeMap::new();
-  let mut dict_in: BTreeMap<String, Params> = BTreeMap::new();
+  let mut data_btreemap: BTreeMap<&str, Params> = BTreeMap::new();
+  let mut dict_in: BTreeMap<&str, Params> = BTreeMap::new();
 
-  dict_in.insert("foo".to_string(), Params::Text("bar"));
+  dict_in.insert("foo", Params::Text("bar"));
 
-  data_btreemap.insert("status".to_string(), Params::Text("dict_bar"));
-  data_btreemap.insert("command".to_string(), Params::Text("dict_bar2"));
-  data_btreemap.insert("state".to_string(), Params::Integer(123));
-  data_btreemap.insert("dict".to_string(), Params::Dict(dict_in));
-  data_btreemap.insert("array".to_string(), Params::Array(vec![
+  data_btreemap.insert("status", Params::Text("dict_bar"));
+  data_btreemap.insert("command", Params::Text("dict_bar2"));
+  data_btreemap.insert("state", Params::Integer(123));
+  data_btreemap.insert("dict", Params::Dict(dict_in));
+  data_btreemap.insert("array", Params::Array(vec![
     Params::Text("test array"),
     Params::BigInteger(num_bigint::BigInt::from(123456 as i128)),
     Params::Array(vec![

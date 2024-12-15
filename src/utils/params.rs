@@ -14,7 +14,7 @@ pub enum Params<'a> {
     Text(&'a str),
     ByteArray(&'a [u8]),
     Array(Vec<Params<'a>>),
-    Dict(BTreeMap<String, Params<'a>>),
+    Dict(BTreeMap<&'a str, Params<'a>>),
 }
 
 pub type QueryParams<'a> = Params<'a>;
@@ -58,6 +58,26 @@ impl<'a> Operation<'a> {
 impl<'a> Params<'a> {
     pub fn decimal_to_string(val: Box<f64>) -> String {
         val.to_string()
+    }
+
+    pub fn is_empty(self) -> bool {
+        match self {
+            Params::Array(array) => array.is_empty(),
+            Params::Dict(dict) => dict.is_empty(),
+            Params::ByteArray(bytearray) => bytearray.is_empty(),
+            Params::Text(text) => text.is_empty(),
+            _ => panic!("Cannot check empty of this type {:?}", self)
+        }
+    }
+
+    pub fn len(self) -> usize {
+        match self {
+            Params::Array(array) => array.len(),
+            Params::Dict(dict) => dict.len(),
+            Params::ByteArray(bytearray) => bytearray.len(),
+            Params::Text(text) => text.len(),
+            _ => panic!("Cannot get length of this type {:?}", self)
+        }
     }
 
     #[cfg(debug_assertions)]
