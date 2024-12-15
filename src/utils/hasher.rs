@@ -167,15 +167,12 @@ impl<'a> BinaryTreeFactory {
 
     fn build_tree(params: Box<Params<'a>>) -> Box<BinaryTreeNode<'_>> {
         match *params {
-            Params::Array(_) => {
-                Self::process_array_node(params)
-            },
-            Params::Dict(_) => {
-                Self::process_dict_node(params)
-            },
-            _ => {
+            Params::Array(_) =>
+                Self::process_array_node(params),
+            Params::Dict(_) =>
+                Self::process_dict_node(params),
+            _ =>
                 Self::process_leaf(params)
-            }
         }
     }
 }
