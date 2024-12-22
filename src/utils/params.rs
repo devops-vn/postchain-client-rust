@@ -20,7 +20,7 @@ pub enum Params<'a> {
 pub type QueryParams<'a> = Params<'a>;
 pub type OperationParams<'a> = Params<'a>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Operation<'a> {
     pub dict: Option<Vec<(&'a str, Params<'a>)>>,
     pub list: Option<Vec<Params<'a>>>,

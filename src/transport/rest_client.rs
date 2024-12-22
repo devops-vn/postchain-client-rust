@@ -143,8 +143,9 @@ impl<'a> RestClient<'a> {
         }
     }
 
-    pub fn print_error(&self, error: &RestError) {
+    pub fn print_error(&self, error: &RestError, ignore_all_errors: bool) -> bool {
         println!(">> Error(s)");
+
         if let Some(error_str) = &error.error_str {
             println!("{}", error_str);
         } else {
@@ -152,6 +153,13 @@ impl<'a> RestClient<'a> {
             let pprint = serde_json::to_string_pretty(val).unwrap();
             println!("{}", pprint);
         }
+
+        if ignore_all_errors {
+            println!("Allow ignore this error");
+            return false
+        }
+
+        true
     }
 
     pub fn update_node_urls(&mut self, node_urls: &'a Vec<String>) {
@@ -160,7 +168,7 @@ impl<'a> RestClient<'a> {
 
     // Submit transaction
     // POST /tx/{blockchainRid}
-    pub async fn send_transaction(&self, tx: &Transaction<'a>) {
+    pub async fn send_transaction(&self, tx: &Transaction<'a>) -> Result<RestResponse, RestError> {
         let txe = tx.gvt_hex_encoded();
 
         let resq_body: serde_json::Map<String, Value> =
@@ -168,7 +176,7 @@ impl<'a> RestClient<'a> {
                 .into_iter()
                 .collect();
 
-        let resp = self
+        self
             .postchain_rest_api(
                 RestRequestMethod::POST,
                 Some(&["tx", &tx.blockchain_rid]),
@@ -176,9 +184,7 @@ impl<'a> RestClient<'a> {
                 Some(serde_json::json!(resq_body)),
                 None,
             )
-            .await;
-
-        println!("{:?}", resp);
+            .await
     }
 
     // Make a query with GTV encoded response

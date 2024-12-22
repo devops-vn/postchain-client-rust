@@ -1,5 +1,9 @@
 use postchain_client::{
-    transport::rest_client::{self, RestClient, RestResponse}, utils::params::{Params, QueryParams}
+    transport::rest_client::{self, RestClient, RestResponse},
+    utils::{
+        params::{Operation, Params, QueryParams},
+        transaction::Transaction
+    }
 };
 
 use std::{collections::BTreeMap, str::FromStr};
@@ -26,26 +30,51 @@ async fn assert_roundtrips<'a>(
             }
         }
         Err(error) => {
-            rc.print_error(&error);
+            rc.print_error(&error, false);
             std::process::exit(0);
         }
     }
 }
 
-#[allow(unused_assignments)]
-#[tokio::test]
-async fn queries_integration_test_success_cases() {
+async fn assert_roundtrips_transaction<'a>(
+    rc: &RestClient<'_>,
+    tx: &Transaction<'_>,
+    operation_name: &'a str,
+) {
+    let send_transaction = rc.send_transaction(tx).await;
+
+    print!("test transaction with operation_name = {} ... ", operation_name);
+
+    match send_transaction {
+        Ok(_) => {
+            println!("ok");
+        }
+        Err(error) => {
+            if rc.print_error(&error, true) {
+                std::process::exit(0);
+            }
+        }
+    }
+}
+
+use std::sync::Once;
+
+static mut URL: Option<&'static str> = None;
+static INIT: Once = Once::new();
+
+async fn initialize_rest_client() -> (String, RestClient<'static>) {
+    // **Initialize RestClient**
     let mut rc = rest_client::RestClient {
         node_url: vec![POSTCHAIN_SINGLE_NODE_API_URL],
         ..Default::default()
     };
 
-    let mut url = String::new();
-    
+    // **Get Blockchain RID**
     let get_blockchain_rid = rc.get_blockchain_rid(0).await;
 
-    let brid_info: (String, &RestClient) = if let Ok(val) = get_blockchain_rid {
-        (val, &rc)
+    // **Determine Blockchain RID and RestClient**
+    let brid_info: (String, RestClient<'static>) = if let Ok(val) = get_blockchain_rid {
+        (val, rc)
     } else {
         let brid = "7A37DD331AC8FED64EEFCCA231B0F975DE7F4371CE5CA44105A5B117DF6DE251".to_string();
 
@@ -54,27 +83,113 @@ async fn queries_integration_test_success_cases() {
             ..Default::default()
         };
 
-        let result = rc.get_nodes_from_directory(
-            &brid,
-        ).await;
+        let result = rc.get_nodes_from_directory(&brid).await;
 
-        if let Err(error) = result {
-            rc.print_error(&error);
-            std::process::exit(0);
+        if let Err(ref error) = result {
+            if rc.print_error(&error, false) {
+                std::process::exit(0);
+            }
         }
 
-        url = result.unwrap()[0].clone();
-    
+        // Store the URL in a static variable
+        let url = result.unwrap()[0].clone();
+        INIT.call_once(|| {
+            unsafe {
+                URL = Some(Box::leak(url.into_boxed_str())); // Convert to a static reference
+            }
+        });
+
         rc = rest_client::RestClient {
-            node_url: vec![&url],
+            node_url: vec![unsafe { URL.unwrap() }], // Use the static reference
             ..Default::default()
         };
 
-        (brid, &rc)
+        (brid, rc)
     };
 
-    let brid = brid_info.0;
-    let rc = brid_info.1;   
+    brid_info
+}
+
+#[allow(unused_assignments)]
+#[tokio::test]
+async fn unsigned_transactions_integration_test() {
+    let client = initialize_rest_client().await;
+
+    let brid = client.0;
+    let rc = client.1;
+
+    let operation_name = "setBoolean";
+    let params = vec![Params::Boolean(true)];
+    let ops = vec![
+        Operation::from_list(operation_name, params)
+    ];
+    let tx = Transaction{
+        blockchain_rid: &brid,
+        operations: Some(ops),
+        ..Default::default()
+    };
+
+    assert_roundtrips_transaction(&rc, &tx, operation_name).await; 
+
+    let operation_name = "setMultivalue";
+    let params = vec![
+        Params::Integer(123),
+        Params::Text("foo"),
+        Params::Text("bar"),
+        ];
+    let ops = vec![
+        Operation::from_list(operation_name, params)
+    ];
+    let tx = Transaction{
+        blockchain_rid: &brid,
+        operations: Some(ops),
+        ..Default::default()
+    };
+
+    assert_roundtrips_transaction(&rc, &tx, operation_name).await; 
+
+    let operation_name = "setEntityViaStruct";
+    let params = vec![
+        ("int", Params::Integer(1)),
+        ("string1", Params::Text("foo")),
+        ("string2", Params::Text("bar")),
+        ];
+    let ops = vec![
+        Operation::from_dict(operation_name, params)
+    ];
+    let tx = Transaction{
+        blockchain_rid: &brid,
+        operations: Some(ops),
+        ..Default::default()
+    };
+
+    assert_roundtrips_transaction(&rc, &tx, operation_name).await;   
+
+    let operation_name = "nestedArguments";
+    let params = vec![
+    ("multiStruct", Params::Array(vec![Params::Integer(1),Params::Text("foo"),Params::Text("bar")])),
+    ("arrayExample", Params::Array(vec![Params::Text("foo")])),
+    ];
+    let ops = vec![
+        Operation::from_dict(operation_name, params)
+    ];
+    let tx = Transaction{
+        blockchain_rid: &brid,
+        operations: Some(ops),
+        ..Default::default()
+    };
+
+    assert_roundtrips_transaction(&rc, &tx, operation_name).await; 
+}
+
+
+#[allow(unused_assignments)]
+#[tokio::test]
+async fn queries_integration_test_success_cases() {
+    let client = initialize_rest_client().await;
+
+    let brid = client.0;
+    let rc = client.1;   
 
     // query boolean
     assert_roundtrips(
@@ -442,7 +557,7 @@ async fn queries_integration_test_get_nodes_from_directory() {
             assert_eq!(rc.node_url, expected_result);
         }
         Err(error) => {
-            rc.print_error(&error);
+            rc.print_error(&error, false);
             std::process::exit(0);
         }
     }

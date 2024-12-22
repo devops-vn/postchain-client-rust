@@ -1,4 +1,4 @@
-use crate::utils::{params::Params, transaction::Transaction};
+use crate::utils::{params::{Operation, Params}, transaction::Transaction};
 
 use asn1::{Asn1Read, Asn1Readable, Asn1Write, ParseError};
 use std::collections::BTreeMap;
@@ -116,7 +116,13 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
               write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
  
-                  encode_tx_body(writer, &Some(&mut tx.operations.clone()))?;      
+                  if let Some(operations) = &tx.operations {
+                    // FIXME
+                    //encode_tx_body(writer, &Some(&mut operations.clone()))?;
+                    for operation in operations {
+                      encode_tx_body(writer, operation)?;
+                    }      
+                  }
 
                   Ok(())
               }), 5)?;
@@ -126,8 +132,10 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
               write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
                 
-                  for sig in &tx.signers {
-                    writer.write_element(&Choice::OCTETSTRING(&sig))?;
+                  if let Some(signers) = &tx.signers {
+                    for sig in signers {
+                      writer.write_element(&Choice::OCTETSTRING(&sig))?;
+                    }
                   }
 
                   Ok(())
@@ -140,8 +148,10 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
           write_explicit_element(writer,
             &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
              
-              for sig in &tx.signatures {
-                writer.write_element(&Choice::OCTETSTRING(&sig))?;
+              if let Some(signatures) = &tx.signatures {
+                for sig in signatures {
+                  writer.write_element(&Choice::OCTETSTRING(&sig))?;
+                }
               }
 
               Ok(())
@@ -172,31 +182,28 @@ pub fn encode<'a>(
     .unwrap()
 }
 
-fn encode_tx_body<'a>(writer: &mut asn1::Writer,
-  query_args: &Option<&'a mut Vec<(&str, Params<'_>)>>)
-  -> asn1::WriteResult {
-    if let Some(q_args) = &query_args {
-      let q_args_as_slice = q_args.iter().as_slice();
-      for (q_type, q_args) in q_args_as_slice {
-      write_explicit_element(writer,
-          &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
-
-            // Operation name
-            write_explicit_element(writer,&asn1::Utf8String::new(&q_type), 2)?;
-
-            // Operation args
-            write_explicit_element(writer,
-          &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
-              q_args.to_writer(writer)?;
-              Ok(())
-            }),5)?;        
-            
-            Ok(())
-          }),
-          5,
-      )?;
-    }
-  }
+fn encode_tx_body<'a>(writer: &mut asn1::Writer, operation: &Operation<'a>) -> asn1::WriteResult {
+  write_explicit_element(writer, &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
+    // Operation name
+    write_explicit_element(writer,&asn1::Utf8String::new(&operation.operation_name.unwrap()), 2)?;
+    // Operation args
+    write_explicit_element(writer, &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
+      if let Some(operation_args) = &operation.list {
+        for arg in operation_args {
+          arg.to_writer(writer)?;
+        }
+      } else if let Some(operation_args) = &operation.dict {
+        write_explicit_element(writer, &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
+          for (_key, val) in operation_args {
+            val.to_writer(writer)?;
+          }
+          Ok(())
+        }), 5)?;
+      }
+      Ok(())
+    }), 5)?;
+    Ok(())
+  }), 5)?;
   Ok(())
 }
 
