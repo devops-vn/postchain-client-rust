@@ -176,10 +176,12 @@ impl<'a> RestClient<'a> {
                 .into_iter()
                 .collect();
 
+        let blockchain_rid = hex::encode(tx.blockchain_rid.clone()).as_str().to_owned(); 
+
         self
             .postchain_rest_api(
                 RestRequestMethod::POST,
-                Some(&["tx", &tx.blockchain_rid]),
+                Some(&["tx", &blockchain_rid]),
                 None,
                 Some(serde_json::json!(resq_body)),
                 None,

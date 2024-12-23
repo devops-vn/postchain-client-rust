@@ -110,15 +110,13 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
 
               // Blockchain RID
               writer.write_element(&Choice::OCTETSTRING(
-                &hex::decode(tx.blockchain_rid).unwrap()))?;
+                &tx.blockchain_rid))?;
 
               // Operations and args
               write_explicit_element(writer,
                 &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
  
                   if let Some(operations) = &tx.operations {
-                    // FIXME
-                    //encode_tx_body(writer, &Some(&mut operations.clone()))?;
                     for operation in operations {
                       encode_tx_body(writer, operation)?;
                     }      
@@ -363,6 +361,42 @@ pub fn encode_value(value: &Params) -> Vec<u8> {
 pub fn encode_value_hex_encode(value: &Params) -> String {
   hex::encode(encode_value(value))
 }
+
+pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params<'a> {
+  let mut signers: Vec<Params<'_>> = vec![];
+  let mut operations:Vec<Params<'_>> = vec![];
+
+  if let Some(raw_signers) = &tx.signers {
+    for signer in raw_signers {
+      signers.push(Params::ByteArray(signer));
+    }
+  }
+
+  for op in &tx.operations.clone().unwrap() {
+    let mut op_args: Vec<Params<'_>> = vec![];
+
+    if let Some(op_list) = &op.list {
+      for arg in op_list {
+        op_args.push(arg.clone());
+      }
+    } else if let Some(op_dict) = &op.dict {
+      for (_key, value) in op_dict {
+        op_args.push(value.clone());
+      }
+    }
+
+    operations.push(Params::Array(vec![
+      Params::Text(op.operation_name.unwrap()),
+      Params::Array(op_args)
+    ]));
+  }
+
+  Params::Array(vec![
+    Params::ByteArray(&tx.blockchain_rid),
+    Params::Array(operations),
+    Params::Array(signers)
+  ])
+} 
 
 #[allow(dead_code)]
 fn assert_roundtrips<'a>(

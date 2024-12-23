@@ -16,6 +16,9 @@ jobs:
               uses: actions/checkout@v4
               with:
                 fetch-depth: 0
+
+            - name: Export PRIV_KEY
+              run: echo "PRIV_KEY=${{ secrets.PRIV_KEY }}" >> $GITHUB_ENV
             
             - name: Run Integration Tests
               run: cargo test -- --nocapture

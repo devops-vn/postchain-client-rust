@@ -228,7 +228,7 @@ impl MerkleHashCalculator {
     }
 }
 
-fn gtv_hash(value: Params<'_>) -> Vec<u8> {
+pub fn gtv_hash(value: Params<'_>) -> Vec<u8> {
     let tree = BinaryTreeFactory::build_tree(Box::new(value));
     let hash_value = MerkleHashCalculator::calculate_merkle_hash(tree);
     return hash_value;

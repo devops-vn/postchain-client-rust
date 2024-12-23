@@ -10,7 +10,9 @@ url = "2.5.4"
 tokio = { version = "1.42.0", features = ["full"] }
 asn1 = {version = "0.20", features = ["std"] }
 secp256k1 = { version = "0.30.0", features = ["rand", "serde"] }
-rand = "0.8.5"
 hex = "0.4.3"
 num-bigint = "0.4.6"
 sha2 = "0.10.8"
+
+[dev-dependencies]
+rand = "0.8.5"

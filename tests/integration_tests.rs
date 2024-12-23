@@ -7,6 +7,7 @@ use postchain_client::{
 };
 
 use std::{collections::BTreeMap, str::FromStr};
+use rand::Rng;
 
 const POSTCHAIN_SINGLE_NODE_API_URL: &str = "http://localhost:7740";
 const POSTCHAIN_MULTI_NODE_API_URL: &str = "https://node0.devnet1.chromia.dev:7740";
@@ -110,10 +111,28 @@ async fn initialize_rest_client() -> (String, RestClient<'static>) {
     brid_info
 }
 
+fn read_private_key_from_env_var() -> [u8; 64] {
+    match std::env::var("PRIV_KEY") {
+        Ok(value) => {
+            let bytes = hex::decode(hex::encode(value)).unwrap();
+            let mut array = [0u8; 64];
+            array.copy_from_slice(&bytes);
+            array
+        }
+        Err(e) => {
+            println!("Couldn't read PRIV_KEY: {}", e);
+            [0; 64]
+        }
+    }
+}
+
 #[allow(unused_assignments)]
 #[tokio::test]
-async fn unsigned_transactions_integration_test() {
+async fn signed_transactions_integration_test() {
     let client = initialize_rest_client().await;
+
+    let mut rng = rand::thread_rng();
+    let random_integer: i32 = rng.gen_range(1..=100000);
 
     let brid = client.0;
     let rc = client.1;
@@ -121,10 +140,47 @@ async fn unsigned_transactions_integration_test() {
     let operation_name = "setBoolean";
     let params = vec![Params::Boolean(true)];
     let ops = vec![
-        Operation::from_list(operation_name, params)
+        Operation::from_list(operation_name, params),
+        Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
+    ];
+
+    let mut tx = Transaction{
+        blockchain_rid: hex::decode(brid).unwrap(),
+        operations: Some(ops),
+        ..Default::default()
+    };
+
+    let brid_from_env = read_private_key_from_env_var();
+
+    let result = tx.sign(&brid_from_env);
+
+    if let Err(error) = result {
+        eprint!("TX sign error {:?}", error);
+    } else {
+        assert_roundtrips_transaction(&rc, &tx, operation_name).await;
+    }
+}
+
+#[allow(unused_assignments)]
+#[tokio::test]
+async fn unsigned_transactions_integration_test() {
+    let client = initialize_rest_client().await;
+
+    let mut rng = rand::thread_rng();
+    let random_integer: i32 = rng.gen_range(1..=100000);
+
+    let brid = client.0;
+    let brid_vec = hex::decode(brid).unwrap();
+    let rc = client.1;
+
+    let operation_name = "setBoolean";
+    let params = vec![Params::Boolean(true)];
+    let ops = vec![
+        Operation::from_list(operation_name, params),
+        Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
     ];
     let tx = Transaction{
-        blockchain_rid: &brid,
+        blockchain_rid: brid_vec.clone(),
         operations: Some(ops),
         ..Default::default()
     };
@@ -138,10 +194,11 @@ async fn unsigned_transactions_integration_test() {
         Params::Text("bar"),
         ];
     let ops = vec![
-        Operation::from_list(operation_name, params)
+        Operation::from_list(operation_name, params),
+        Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
     ];
     let tx = Transaction{
-        blockchain_rid: &brid,
+        blockchain_rid: brid_vec.clone(),
         operations: Some(ops),
         ..Default::default()
     };
@@ -155,10 +212,11 @@ async fn unsigned_transactions_integration_test() {
         ("string2", Params::Text("bar")),
         ];
     let ops = vec![
-        Operation::from_dict(operation_name, params)
+        Operation::from_dict(operation_name, params),
+        Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
     ];
     let tx = Transaction{
-        blockchain_rid: &brid,
+        blockchain_rid: brid_vec.clone(),
         operations: Some(ops),
         ..Default::default()
     };
@@ -171,10 +229,11 @@ async fn unsigned_transactions_integration_test() {
     ("arrayExample", Params::Array(vec![Params::Text("foo")])),
     ];
     let ops = vec![
-        Operation::from_dict(operation_name, params)
+        Operation::from_dict(operation_name, params),
+        Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
     ];
     let tx = Transaction{
-        blockchain_rid: &brid,
+        blockchain_rid: brid_vec.clone(),
         operations: Some(ops),
         ..Default::default()
     };
