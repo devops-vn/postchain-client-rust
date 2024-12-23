@@ -7,11 +7,13 @@ use url::Url;
 use serde_json::Value;
 use std::{error::Error, time::Duration};
 
-use crate::utils::transaction::Transaction;
+use crate::utils::transaction::{Transaction, TransactionStatus};
 
 pub struct RestClient<'a> {
     pub node_url: Vec<&'a str>,
     pub time_out: u64,
+    pub poll_attemps: u64,
+    pub poll_attemp_interval_time: u64
 }
 
 #[derive(Debug)]
@@ -32,6 +34,8 @@ impl<'a> Default for RestClient<'a> {
         return RestClient {
             node_url: vec!["http://localhost:7740"],
             time_out: 30,
+            poll_attemps: 5,
+            poll_attemp_interval_time: 5
         };
     }
 }
@@ -164,6 +168,49 @@ impl<'a> RestClient<'a> {
 
     pub fn update_node_urls(&mut self, node_urls: &'a Vec<String>) {
         self.node_url = node_urls.iter().map(String::as_str).collect();
+    }
+
+    // Transaction status
+    // GET /tx/{blockchain_rid}/{transaction_rid}/status
+    pub async fn get_transaction_status(&self, blockchain_rid: &str, tx_rid: &str) -> Result<TransactionStatus, RestError> {
+        self.get_transaction_status_with_poll(blockchain_rid, tx_rid, 0).await
+    }
+
+    pub async fn get_transaction_status_with_poll(&self, blockchain_rid: &str, tx_rid: &str, attempts: u64) -> Result<TransactionStatus, RestError> {
+        if attempts >= self.poll_attemps {
+            return Ok(TransactionStatus::WAITING);
+        }
+
+        let resp = self.postchain_rest_api(RestRequestMethod::GET,
+            Some(&["tx", blockchain_rid, tx_rid, "status"]),
+            None,
+            None,
+            None).await?;
+        match resp {
+            RestResponse::Json(val) => {
+                let status: serde_json::Map<String, Value> = serde_json::from_value(val).unwrap();
+                if let Some(status_value) = status.get("status") {
+                    let status_value = status_value.as_str();
+                    let status_code = match status_value {
+                        Some("waiting") => {
+                            // Waiting for transaction rejected or confirmed!!!
+                            // Interval time = 5 secs on each attempt
+                            // Break after 5 attempts
+                            tokio::time::sleep(Duration::from_secs(self.poll_attemp_interval_time)).await;
+                            return Box::pin(self.get_transaction_status_with_poll(blockchain_rid, tx_rid, attempts + 1)).await;
+                        },
+                        Some("confirmed") => Ok(TransactionStatus::CONFIRMED),
+                        Some("rejected") => Ok(TransactionStatus::REJECTED),
+                        _ => Ok(TransactionStatus::UNKNOWN)
+                    };
+                    return status_code
+                }
+                Ok(TransactionStatus::UNKNOWN)
+            }
+            _ => {
+                Ok(TransactionStatus::UNKNOWN)
+            }
+        }
     }
 
     // Submit transaction

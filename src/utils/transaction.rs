@@ -5,8 +5,12 @@ use super::{keypair, params::Operation};
 
 use hex::FromHex;
 
-pub enum TransactionErrors {
-    BRIDIsEmpty
+#[derive(Debug, PartialEq)]
+pub enum TransactionStatus {
+    REJECTED,
+    CONFIRMED,
+    WAITING,
+    UNKNOWN
 }
 
 pub struct Transaction<'a> {
@@ -46,6 +50,15 @@ impl<'a> Transaction<'a> {
         hex_encode
     }
 
+    pub fn tx_rid(&self) -> Vec<u8> {
+        let to_draw_gtx = gtv::to_draw_gtx(self);
+        gtv_hash(to_draw_gtx)
+    }
+
+    pub fn tx_rid_hex(&self) -> String {
+        hex::encode(self.tx_rid())
+    }
+
     pub fn sign(&mut self, private_key: &[u8; 64]) -> Result<(), secp256k1::Error> {
         let bytes = Vec::from_hex(private_key).unwrap();
         let mut private_key_bytes = [0u8; 32];
@@ -61,11 +74,9 @@ impl<'a> Transaction<'a> {
             signers.push(public_key.to_vec());
         }
 
-        let to_draw_gtx = gtv::to_draw_gtx(self);
+        let digest = self.tx_rid();
 
-        let digest = gtv_hash(to_draw_gtx);
-
-        let digest_array: [u8; 32] = digest.try_into().expect("Invalid digest to sign");
+        let digest_array: [u8; 32] = digest.clone().try_into().expect("Invalid digest to sign");
         let signature = keypair::sign(&digest_array, &private_key_bytes)?;
 
         if self.signatures.is_none() {

@@ -11,7 +11,7 @@ services:
       POSTGRES_PASSWORD: postchain
 
   blockchain:
-    image: "registry.gitlab.com/chromaway/core-tools/chromia-cli/chr:0.20.13"
+    image: "registry.gitlab.com/chromaway/core-tools/chromia-cli/chr:0.22.2"
     command: chr node start --wipe
     ports:
       - 7740:7740

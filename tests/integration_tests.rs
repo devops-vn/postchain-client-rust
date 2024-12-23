@@ -41,6 +41,7 @@ async fn assert_roundtrips_transaction<'a>(
     rc: &RestClient<'_>,
     tx: &Transaction<'_>,
     operation_name: &'a str,
+    brid: &'a str,
 ) {
     let send_transaction = rc.send_transaction(tx).await;
 
@@ -49,6 +50,8 @@ async fn assert_roundtrips_transaction<'a>(
     match send_transaction {
         Ok(_) => {
             println!("ok");
+            let tx_status = rc.get_transaction_status(brid, &tx.tx_rid_hex()).await;
+            println!("{:?}", tx_status);
         }
         Err(error) => {
             if rc.print_error(&error, true) {
@@ -120,8 +123,7 @@ fn read_private_key_from_env_var() -> [u8; 64] {
             array
         }
         Err(e) => {
-            println!("Couldn't read PRIV_KEY: {}", e);
-            [0; 64]
+            panic!("Couldn't read PRIV_KEY: {}", e)
         }
     }
 }
@@ -138,26 +140,49 @@ async fn signed_transactions_integration_test() {
     let rc = client.1;
 
     let operation_name = "setBoolean";
-    let params = vec![Params::Boolean(true)];
+    let params = vec![Params::Boolean(false)];
     let ops = vec![
         Operation::from_list(operation_name, params),
         Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
     ];
 
     let mut tx = Transaction{
-        blockchain_rid: hex::decode(brid).unwrap(),
+        blockchain_rid: hex::decode(brid.clone()).unwrap(),
         operations: Some(ops),
         ..Default::default()
     };
 
-    let brid_from_env = read_private_key_from_env_var();
+    let private_key_from_env = read_private_key_from_env_var();
 
-    let result = tx.sign(&brid_from_env);
+    let result = tx.sign(&private_key_from_env);
 
     if let Err(error) = result {
         eprint!("TX sign error {:?}", error);
     } else {
-        assert_roundtrips_transaction(&rc, &tx, operation_name).await;
+        assert_roundtrips_transaction(&rc, &tx, operation_name, &brid).await;
+    }
+
+    let operation_name = "nestedArguments";
+    let params = vec![
+    ("multiStruct", Params::Array(vec![Params::Integer(1),Params::Text("foo"),Params::Text("bar")])),
+    ("arrayExample", Params::Array(vec![Params::Text("foo")])),
+    ];
+    let ops = vec![
+        Operation::from_dict(operation_name, params),
+        Operation::from_list("nop", vec![Params::Integer(random_integer.into())])
+    ];
+    let mut tx = Transaction{
+        blockchain_rid: hex::decode(brid.clone()).unwrap(),
+        operations: Some(ops),
+        ..Default::default()
+    };
+
+    let result = tx.sign(&private_key_from_env);
+
+    if let Err(error) = result {
+        eprint!("TX sign error {:?}", error);
+    } else {
+        assert_roundtrips_transaction(&rc, &tx, operation_name, &brid).await;
     }
 }
 
@@ -170,7 +195,7 @@ async fn unsigned_transactions_integration_test() {
     let random_integer: i32 = rng.gen_range(1..=100000);
 
     let brid = client.0;
-    let brid_vec = hex::decode(brid).unwrap();
+    let brid_vec = hex::decode(brid.clone()).unwrap();
     let rc = client.1;
 
     let operation_name = "setBoolean";
@@ -185,7 +210,7 @@ async fn unsigned_transactions_integration_test() {
         ..Default::default()
     };
 
-    assert_roundtrips_transaction(&rc, &tx, operation_name).await; 
+    assert_roundtrips_transaction(&rc, &tx, operation_name, &brid).await;
 
     let operation_name = "setMultivalue";
     let params = vec![
@@ -203,7 +228,7 @@ async fn unsigned_transactions_integration_test() {
         ..Default::default()
     };
 
-    assert_roundtrips_transaction(&rc, &tx, operation_name).await; 
+    assert_roundtrips_transaction(&rc, &tx, operation_name, &brid).await;
 
     let operation_name = "setEntityViaStruct";
     let params = vec![
@@ -221,7 +246,7 @@ async fn unsigned_transactions_integration_test() {
         ..Default::default()
     };
 
-    assert_roundtrips_transaction(&rc, &tx, operation_name).await;   
+    assert_roundtrips_transaction(&rc, &tx, operation_name, &brid).await;
 
     let operation_name = "nestedArguments";
     let params = vec![
@@ -238,7 +263,7 @@ async fn unsigned_transactions_integration_test() {
         ..Default::default()
     };
 
-    assert_roundtrips_transaction(&rc, &tx, operation_name).await; 
+    assert_roundtrips_transaction(&rc, &tx, operation_name, &brid).await;
 }
 
 
