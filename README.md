@@ -24,8 +24,9 @@ $ cargo test -- --nocapture
 ##### [TODO]
 ###### GTV ASN.1 encode/decode [completed] (*)
 ###### GTV query [completed] (*)
-###### Send sign/unsign transaction [complated] (*)
-###### Pooling to receive status of transaction [in-progress]
+###### Send sign/unsign transaction [completed] (*)
+###### Get transaction status with poll [completed] (*)
 ###### Add more complex tests [almost completed]
+###### Add examples [in-progress]
 
 ###### (*) still requires additional testing and optimization.
