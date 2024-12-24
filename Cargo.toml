@@ -15,14 +15,14 @@ serde_json = "1.0.134"
 reqwest = { version = "0.12.9", features = ["json"] } 
 url = "2.5.4"
 tokio = { version = "1.42.0", features = ["full"] }
-asn1 = {version = "0.20", features = ["std"] }
+asn1 = {version = "0.20.0", features = ["std"] }
 secp256k1 = { version = "0.30.0", features = ["rand", "serde"] }
 hex = "0.4.3"
 num-bigint = "0.4.6"
 sha2 = "0.10.8"
-tracing = "0.1"
+tracing = "0.1.41"
 
 [dev-dependencies]
 rand = "0.8.5"
-tracing-subscriber = "0.3.0"
+tracing-subscriber = "0.3.19"
 ctor = "0.2.9"
