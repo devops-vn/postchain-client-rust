@@ -1,7 +1,7 @@
 use crate::encoding::gtv;
 use crate::utils::hasher::gtv_hash;
-
-use super::{keypair, params::Operation};
+use super::params::Operation;
+use secp256k1::{PublicKey, Secp256k1, SecretKey, Message, ecdsa::Signature};
 
 use hex::FromHex;
 
@@ -64,7 +64,7 @@ impl<'a> Transaction<'a> {
         let mut private_key_bytes = [0u8; 32];
         private_key_bytes.copy_from_slice(&bytes[0..32]);
 
-        let public_key = keypair::get_public_key(&private_key_bytes)?;
+        let public_key = get_public_key(&private_key_bytes)?;
 
         if self.signers.is_none() {
                 self.signers = Some(Vec::new());
@@ -77,7 +77,7 @@ impl<'a> Transaction<'a> {
         let digest = self.tx_rid();
 
         let digest_array: [u8; 32] = digest.clone().try_into().expect("Invalid digest to sign");
-        let signature = keypair::sign(&digest_array, &private_key_bytes)?;
+        let signature = sign(&digest_array, &private_key_bytes)?;
 
         if self.signatures.is_none() {
             self.signatures = Some(Vec::new());
@@ -89,4 +89,27 @@ impl<'a> Transaction<'a> {
 
         Ok(())
     }
+
+    pub fn multi_sign(&mut self, private_keys: &[&[u8; 64]]) -> Result<(), secp256k1::Error> {
+        for private_key in private_keys {
+            self.sign(private_key)?;
+        }
+        Ok(())
+    }
+}
+
+fn sign(digest: &[u8; 32], private_key: &[u8; 32]) -> Result<[u8; 64], secp256k1::Error> {
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_slice(private_key)?;
+    let message = Message::from_digest(*digest);
+    let signature: Signature = secp.sign_ecdsa(&message, &secret_key);
+    let serialized_signature = signature.serialize_compact();
+    Ok(serialized_signature)
+}
+
+fn get_public_key(private_key: &[u8; 32]) -> Result<[u8; 33], secp256k1::Error> {
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_slice(private_key)?;
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key).serialize();
+    Ok(public_key)
 }

@@ -9,9 +9,10 @@ use std::{error::Error, time::Duration};
 
 use crate::utils::transaction::{Transaction, TransactionStatus};
 
+#[derive(Debug)]
 pub struct RestClient<'a> {
     pub node_url: Vec<&'a str>,
-    pub time_out: u64,
+    pub request_time_out: u64,
     pub poll_attemps: u64,
     pub poll_attemp_interval_time: u64
 }
@@ -23,7 +24,7 @@ pub enum RestResponse {
     Bytes(Vec<u8>),
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RestRequestMethod {
     GET,
     POST,
@@ -33,7 +34,7 @@ impl<'a> Default for RestClient<'a> {
     fn default() -> Self {
         return RestClient {
             node_url: vec!["http://localhost:7740"],
-            time_out: 30,
+            request_time_out: 30,
             poll_attemps: 5,
             poll_attemp_interval_time: 5
         };
@@ -85,6 +86,7 @@ impl std::fmt::Display for RestError {
 }
 
 impl<'a> RestClient<'a> {
+
     pub async fn get_nodes_from_directory(&self, brid: &str) -> Result<Vec<String>, RestError> {
         let directory_brid = self.get_blockchain_rid(0).await?;
 
@@ -102,7 +104,7 @@ impl<'a> RestClient<'a> {
                 Some(path_segments),
                 Some(&mut query_params),
                 query_body_json,
-                query_body_raw,
+                query_body_raw
             )
             .await;
 
@@ -120,7 +122,10 @@ impl<'a> RestClient<'a> {
                 RestResponse::String(str_val) => Ok(vec![str_val]),
                 _ => Ok(vec!["nop".to_string()]),
             },
-            Err(error) => Err(error),
+            Err(error) => {
+                tracing::error!("Can't get API urls from DC chain: {} because of error: {:?}", brid, error);
+                Err(error)
+            }
         }
     }
 
@@ -131,11 +136,12 @@ impl<'a> RestClient<'a> {
                 Some(&[&format!("/brid/iid_{}", blockchain_iid)]),
                 None,
                 None,
-                None,
+                None
             )
             .await;
 
         if let Err(error) = resp {
+            tracing::error!("Can't get blockchain RID with IID = {} because of error: {:?}", blockchain_iid, error);
             return Err(error);
         }
 
@@ -177,7 +183,10 @@ impl<'a> RestClient<'a> {
     }
 
     pub async fn get_transaction_status_with_poll(&self, blockchain_rid: &str, tx_rid: &str, attempts: u64) -> Result<TransactionStatus, RestError> {
+        tracing::info!("Waiting for transaction status of blockchain RID: {} with tx: {} | attempt: {}", blockchain_rid, tx_rid, attempts);
+
         if attempts >= self.poll_attemps {
+            tracing::warn!("Transaction status still in waiting status after {} attempts", attempts);
             return Ok(TransactionStatus::WAITING);
         }
 
@@ -199,8 +208,14 @@ impl<'a> RestClient<'a> {
                             tokio::time::sleep(Duration::from_secs(self.poll_attemp_interval_time)).await;
                             return Box::pin(self.get_transaction_status_with_poll(blockchain_rid, tx_rid, attempts + 1)).await;
                         },
-                        Some("confirmed") => Ok(TransactionStatus::CONFIRMED),
-                        Some("rejected") => Ok(TransactionStatus::REJECTED),
+                        Some("confirmed") => {
+                            tracing::info!("Transaction confirmed!");
+                            Ok(TransactionStatus::CONFIRMED)
+                        },
+                        Some("rejected") => {
+                            tracing::warn!("Transaction rejected!");
+                            Ok(TransactionStatus::REJECTED)
+                        },
                         _ => Ok(TransactionStatus::UNKNOWN)
                     };
                     return status_code
@@ -223,7 +238,9 @@ impl<'a> RestClient<'a> {
                 .into_iter()
                 .collect();
 
-        let blockchain_rid = hex::encode(tx.blockchain_rid.clone()).as_str().to_owned(); 
+        let blockchain_rid = hex::encode(tx.blockchain_rid.clone()).as_str().to_owned();
+
+        tracing::info!("Sending transaction to {}", blockchain_rid); 
 
         self
             .postchain_rest_api(
@@ -231,7 +248,7 @@ impl<'a> RestClient<'a> {
                 Some(&["tx", &blockchain_rid]),
                 None,
                 Some(serde_json::json!(resq_body)),
-                None,
+                None
             )
             .await
     }
@@ -254,27 +271,56 @@ impl<'a> RestClient<'a> {
 
         let encode_str = crate::encoding::gtv::encode(query_type, query_args);
 
+        tracing::info!("Querying {} to {}", query_type, brid); 
+
         self.postchain_rest_api(
             RestRequestMethod::POST,
             Some(&[query_prefix_str, brid]),
-            query_params,
+            query_params.as_deref(),
             None,
-            Some(encode_str),
-        )
-        .await
+            Some(encode_str)
+        ).await
     }
 
     async fn postchain_rest_api(
         &self,
         method: RestRequestMethod,
         path_segments: Option<&[&str]>,
-        query_params: Option<&'a mut Vec<(&'a str, &'a str)>>,
+        query_params: Option<&'a Vec<(&'a str, &'a str)>>,
+        query_body_json: Option<Value>,
+        query_body_raw: Option<Vec<u8>>
+    ) -> Result<RestResponse, RestError> {
+        let mut node_index: usize = 0;
+        loop {
+            let result = self.postchain_rest_api_with_poll(method,
+                path_segments, query_params,
+                query_body_json.clone(), query_body_raw.clone(), node_index).await;
+
+            if let Err(ref error) = result {
+                node_index += 1;
+
+                if node_index < self.node_url.len() && error.status_code.is_none() {
+                    tracing::info!("The API endpoint can't be reached; will try another one!");
+                    continue;
+                }
+            }
+            return result;
+        }
+    }
+
+    async fn postchain_rest_api_with_poll(
+        &self,
+        method: RestRequestMethod,
+        path_segments: Option<&[&str]>,
+        query_params: Option<&'a Vec<(&'a str, &'a str)>>,
         query_body_json: Option<Value>,
         query_body_raw: Option<Vec<u8>>,
+        node_index: usize,
     ) -> Result<RestResponse, RestError> {
-        // TODO: If request on a node is failed then try another node.
-        let node_index: usize = 0;
+
         let mut url = Url::parse(&self.node_url[node_index]).unwrap();
+
+        tracing::info!("Requesting on API endpoint: {}", url);
 
         if let Some(ps) = path_segments {
             if !ps.is_empty() {
@@ -295,9 +341,13 @@ impl<'a> RestClient<'a> {
             && query_body_json.is_none()
             && query_body_raw.is_none()
         {
+            let error_str = "Error: POST request need a body [json or binary].".to_string();
+
+            tracing::error!(error_str);
+
             return Err(RestError {
                 type_error: TypeError::FromRestApi,
-                error_str: Some("Error: POST request need a body [json or binary].".to_string()),
+                error_str: Some(error_str),
                 status_code: None,
                 ..Default::default()
             });
@@ -309,7 +359,7 @@ impl<'a> RestClient<'a> {
             RestRequestMethod::GET => {
                 rest_client
                     .get(url.clone())
-                    .timeout(Duration::from_secs(self.time_out))
+                    .timeout(Duration::from_secs(self.request_time_out))
                     .send()
                     .await
             }
@@ -318,7 +368,7 @@ impl<'a> RestClient<'a> {
                 if let Some(qb) = query_body_json {
                     rest_client
                         .post(url.clone())
-                        .timeout(Duration::from_secs(self.time_out))
+                        .timeout(Duration::from_secs(self.request_time_out))
                         .json(&qb)
                         .send()
                         .await
@@ -326,7 +376,7 @@ impl<'a> RestClient<'a> {
                     let r_body = reqwest::Body::from(query_body_raw.unwrap());
                     rest_client
                         .post(url.clone())
-                        .timeout(Duration::from_secs(self.time_out))
+                        .timeout(Duration::from_secs(self.request_time_out))
                         .body(r_body)
                         .send()
                         .await
@@ -334,7 +384,7 @@ impl<'a> RestClient<'a> {
             }
         };
 
-        match req_result {
+        let req_result_match = match req_result {
             Ok(resp) => {
                 let http_status_code = resp.status().to_string();
                 let http_resp_header = resp.headers().get(CONTENT_TYPE).unwrap().to_str().unwrap();
@@ -356,6 +406,8 @@ impl<'a> RestClient<'a> {
                         err.error_str = Some(error_str);
                     }
 
+                    tracing::error!("{:?}", err);
+
                     return Err(err);
                 }
 
@@ -374,11 +426,18 @@ impl<'a> RestClient<'a> {
 
                 Ok(rest_resp)
             }
-            Err(error) => Err(RestError {
-                error_str: Some(error.to_string()),
-                type_error: TypeError::FromReqClient,
-                ..Default::default()
-            }),
-        }
+            Err(error) => {
+                let rest_error = RestError {
+                    error_str: Some(error.to_string()),
+                    type_error: TypeError::FromReqClient,
+                    ..Default::default()};
+
+                tracing::error!("{:?}", rest_error);
+
+                Err(rest_error)
+            },
+        };
+
+        req_result_match
     }
 }

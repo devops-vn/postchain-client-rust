@@ -8,6 +8,13 @@ use postchain_client::{
 
 use std::{collections::BTreeMap, str::FromStr};
 use rand::Rng;
+use tracing_subscriber;
+use ctor::ctor;
+
+#[ctor]
+fn initialize_test_envs() {
+    tracing_subscriber::fmt::init();
+}
 
 const POSTCHAIN_SINGLE_NODE_API_URL: &str = "http://localhost:7740";
 const POSTCHAIN_MULTI_NODE_API_URL: &str = "https://node0.devnet1.chromia.dev:7740";
