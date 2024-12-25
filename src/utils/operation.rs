@@ -2,7 +2,6 @@ extern crate num_bigint;
 
 use std::{collections::BTreeMap, fmt::Debug};
 use num_bigint::BigInt;
-
 use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -101,6 +100,20 @@ impl Params {
         val.to_string()
     }
 
+    pub fn dict_to_array(self) -> Vec<Params> {
+        match self {
+            Params::Dict(dict) => {
+                let values: Vec<Params> = dict.into_iter()
+                    .filter_map(|(_, value)| {
+                        Some(value)
+                    })
+                    .collect();
+                values
+            },
+            _ => panic!("Expected Params::Dict, found {:?}", self),
+        }
+    }
+
     pub fn is_empty(self) -> bool {
         match self {
             Params::Array(array) => array.is_empty(),
@@ -183,6 +196,24 @@ impl Params {
         }
 
         dict
+    }
+
+    pub fn from_struct_to_list<T>(struct_instance: &T) -> Vec<Params>
+    where
+        T: std::fmt::Debug + serde::Serialize,
+    {
+        let json_value = serde_json::to_value(struct_instance)
+            .expect("Failed to convert struct to JSON value");
+
+        let mut vec = Vec::new();
+
+        if let serde_json::Value::Object(map) = json_value {
+            for (_, val) in map {
+                vec.push(Self::value_to_params(val));
+            }
+        }
+
+        vec
     }
 
     fn value_to_params(value: serde_json::Value) -> Params {
@@ -287,7 +318,7 @@ fn test_serialize_struct_to_param_dict() {
         nested_struct: TestStruct2{foo: "bar".to_string()}, bytearray: vec![1, 2, 3, 4, 5]
     };
 
-    let r = Params::from_struct(&ts1);
+    let r: Params = Params::from_struct(&ts1);
     let m: Result<TestStruct1, String> = r.to_struct();
 
     assert_eq!(ts1, m.unwrap());
