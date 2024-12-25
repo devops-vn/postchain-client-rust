@@ -244,11 +244,11 @@ fn test_gtv_hash() {
         ])
     ]);
 
-    let mut data2_btree: BTreeMap<&str, Params> = BTreeMap::new();
-    data2_btree.insert("foo", Params::Integer(-1));
-    data2_btree.insert("foo1", Params::Text("OK".to_string()));
-    data2_btree.insert("bar", Params::BigInteger(i128::MAX.into()));
-    data2_btree.insert("bar1", Params::BigInteger((1000000000000 as i128).into()));
+    let mut data2_btree: BTreeMap<String, Params> = BTreeMap::new();
+    data2_btree.insert("foo".to_string(), Params::Integer(-1));
+    data2_btree.insert("foo1".to_string(), Params::Text("OK".to_string()));
+    data2_btree.insert("bar".to_string(), Params::BigInteger(i128::MAX.into()));
+    data2_btree.insert("bar1".to_string(), Params::BigInteger((1000000000000 as i128).into()));
 
     let data2 = Params::Dict(data2_btree);
     

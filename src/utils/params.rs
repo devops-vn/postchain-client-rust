@@ -15,7 +15,7 @@ pub enum Params<'a> {
     Text(String),
     ByteArray(&'a [u8]),
     Array(Vec<Params<'a>>),
-    Dict(BTreeMap<&'a str, Params<'a>>),
+    Dict(BTreeMap<String, Params<'a>>),
 }
 
 pub type QueryParams<'a> = Params<'a>;
@@ -212,8 +212,8 @@ impl<'a> Into<Vec<Params<'a>>> for Params<'a> {
     }
 }
 
-impl<'a> Into<BTreeMap<&'a str, Params<'a>>> for Params<'a> {
-    fn into(self) -> BTreeMap<&'a str, Params<'a>> {
+impl<'a> Into<BTreeMap<String, Params<'a>>> for Params<'a> {
+    fn into(self) -> BTreeMap<String, Params<'a>> {
         match self {
             Params::Dict(dict) => dict,
             _ => panic!("Cannot convert {:?} into BTreeMap", self),
@@ -276,19 +276,19 @@ fn test_deserialize_param_dict_to_struct() {
             ]
     };
 
-    let mut nested_params: BTreeMap<&str, Params> = BTreeMap::new();
-    nested_params.insert("bigint_as_string", Params::BigInteger(bigint.clone()));
-    nested_params.insert("bigint_as_num_bigint", Params::BigInteger(bigint.clone()));
+    let mut nested_params: BTreeMap<String, Params> = BTreeMap::new();
+    nested_params.insert("bigint_as_string".to_string(), Params::BigInteger(bigint.clone()));
+    nested_params.insert("bigint_as_num_bigint".to_string(), Params::BigInteger(bigint.clone()));
 
-    let mut params: BTreeMap<&str, Params> = BTreeMap::new();
-    params.insert("x", Params::Integer(1));
-    params.insert("y", Params::Integer(2));
-    params.insert("z", Params::Text("foo".to_string()));
-    params.insert("dict", Params::Dict(nested_params));
-    params.insert("l", Params::Boolean(true));
-    params.insert("n", Params::Decimal(3.14));
-    params.insert("m", Params::ByteArray(bytearray_value));
-    params.insert("array", Params::Array(vec![Params::Integer(1), Params::Text("foo".to_string())]));
+    let mut params: BTreeMap<String, Params> = BTreeMap::new();
+    params.insert("x".to_string(), Params::Integer(1));
+    params.insert("y".to_string(), Params::Integer(2));
+    params.insert("z".to_string(), Params::Text("foo".to_string()));
+    params.insert("dict".to_string(), Params::Dict(nested_params));
+    params.insert("l".to_string(), Params::Boolean(true));
+    params.insert("n".to_string(), Params::Decimal(3.14));
+    params.insert("m".to_string(), Params::ByteArray(bytearray_value));
+    params.insert("array".to_string(), Params::Array(vec![Params::Integer(1), Params::Text("foo".to_string())]));
 
     let params_dict = Params::Dict(params);
     let result: Result<TestStruct, String> = params_dict.to_struct();

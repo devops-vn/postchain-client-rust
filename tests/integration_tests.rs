@@ -393,9 +393,9 @@ async fn queries_integration_test_success_cases() {
     assert_roundtrips(&rc, &brid, "test_array", Some(data), "a5023000").await;
 
     // query string key map
-    let mut params: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    params.insert("foo", QueryParams::Text("bar".to_string()));
-    params.insert("foo1", QueryParams::Text("bar1".to_string()));
+    let mut params: BTreeMap<String, QueryParams> = BTreeMap::new();
+    params.insert("foo".to_string(), QueryParams::Text("bar".to_string()));
+    params.insert("foo1".to_string(), QueryParams::Text("bar1".to_string()));
 
     let data = &mut vec![("arg1", QueryParams::Dict(params))];
 
@@ -409,7 +409,7 @@ async fn queries_integration_test_success_cases() {
     .await;
 
     // query empty string key map
-    let params: BTreeMap<&str, QueryParams> = BTreeMap::new();
+    let params: BTreeMap<String, QueryParams> = BTreeMap::new();
     let data = &mut vec![("arg1", QueryParams::Dict(params))];
     assert_roundtrips(&rc, &brid, "test_string_key_map", Some(data), "a4023000").await;
 
@@ -452,9 +452,9 @@ async fn queries_integration_test_success_cases() {
 
     // query named tuple
     // same `map`
-    let mut params: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    params.insert("x", QueryParams::Integer(1));
-    params.insert("y", QueryParams::Integer(2));
+    let mut params: BTreeMap<String, QueryParams> = BTreeMap::new();
+    params.insert("x".to_string(), QueryParams::Integer(1));
+    params.insert("y".to_string(), QueryParams::Integer(2));
 
     let data = &mut vec![("arg1", QueryParams::Dict(params))];
     assert_roundtrips(
@@ -499,8 +499,8 @@ async fn queries_integration_test_success_cases() {
     // query struct
     // key = string
     // value = dict() or array()
-    let mut params: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    params.insert("int", QueryParams::Integer(13));
+    let mut params: BTreeMap<String, QueryParams> = BTreeMap::new();
+    params.insert("int".to_string(), QueryParams::Integer(13));
     let data = &mut vec![("x", QueryParams::Dict(params))];
     assert_roundtrips(
         &rc,
@@ -549,8 +549,8 @@ async fn queries_integration_test_success_cases() {
     .await;
 
     // query test nullable struct
-    let mut params: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    params.insert("int", QueryParams::Null);
+    let mut params: BTreeMap<String, QueryParams> = BTreeMap::new();
+    params.insert("int".to_string(), QueryParams::Null);
 
     let data = &mut vec![("arg1", QueryParams::Dict(params))];
 
@@ -592,21 +592,21 @@ async fn queries_integration_test_success_cases() {
         }
     }).to_string();
 
-    let blessing_rating_factor: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    let item_rating_factor: BTreeMap<&str, QueryParams> = BTreeMap::new();
+    let blessing_rating_factor: BTreeMap<String, QueryParams> = BTreeMap::new();
+    let item_rating_factor: BTreeMap<String, QueryParams> = BTreeMap::new();
 
-    let mut args: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    args.insert("skill_unlock_level", QueryParams::Array(vec![
+    let mut args: BTreeMap<String, QueryParams> = BTreeMap::new();
+    args.insert("skill_unlock_level".to_string(), QueryParams::Array(vec![
         QueryParams::Integer(1), QueryParams::Integer(2)
         ]));
-    args.insert("hero_level_lookup", QueryParams::Array(vec![]));
-    args.insert("player_level_lookup", QueryParams::Array(vec![]));
-    args.insert("hero_level_bonus_lookup", QueryParams::Array(vec![]));
-    args.insert("blessing_rating_factor", QueryParams::Dict(blessing_rating_factor));
-    args.insert("item_rating_factor", QueryParams::Dict(item_rating_factor));
-    args.insert("blessing_gender_male_chance", QueryParams::Decimal(1.1));
-    args.insert("onboarding_map_blessing_to_fragments", QueryParams::Array(vec![]));
-    args.insert("season_claim_offset", QueryParams::Integer(1));
+    args.insert("hero_level_lookup".to_string(), QueryParams::Array(vec![]));
+    args.insert("player_level_lookup".to_string(), QueryParams::Array(vec![]));
+    args.insert("hero_level_bonus_lookup".to_string(), QueryParams::Array(vec![]));
+    args.insert("blessing_rating_factor".to_string(), QueryParams::Dict(blessing_rating_factor));
+    args.insert("item_rating_factor".to_string(), QueryParams::Dict(item_rating_factor));
+    args.insert("blessing_gender_male_chance".to_string(), QueryParams::Decimal(1.1));
+    args.insert("onboarding_map_blessing_to_fragments".to_string(), QueryParams::Array(vec![]));
+    args.insert("season_claim_offset".to_string(), QueryParams::Integer(1));
 
     assert_roundtrips(
         &rc,

@@ -74,8 +74,8 @@ impl<T: ToParam> ToParam for Vec<T> {
 
 impl<'a, T: ToParam> ToParam for BTreeMap<&'a str, T> {
     fn to_param(&self) -> Params<'_> {
-        let dict: BTreeMap<&'a str, Params<'_>> = self.iter()
-            .map(|(key, value)| (*key, value.to_param()))
+        let dict: BTreeMap<String, Params<'_>> = self.iter()
+            .map(|(key, value)| (key.to_string(), value.to_param())) 
             .collect();
         Params::Dict(dict)
     }
@@ -83,8 +83,8 @@ impl<'a, T: ToParam> ToParam for BTreeMap<&'a str, T> {
 
 impl<T: ToParam> ToParam for BTreeMap<String, T> {
     fn to_param(&self) -> Params<'_> {
-        let dict: BTreeMap<&str, Params<'_>> = self.iter()
-            .map(|(key, value)| (key.as_str(), value.to_param())) // Convert String to &str
+        let dict: BTreeMap<String, Params<'_>> = self.iter()
+            .map(|(key, value)| (key.clone(), value.to_param()))
             .collect();
         Params::Dict(dict)
     }
