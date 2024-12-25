@@ -1,6 +1,6 @@
 use crate::encoding::gtv;
 use crate::utils::hasher::gtv_hash;
-use super::params::Operation;
+use super::operation::Operation;
 use secp256k1::{PublicKey, Secp256k1, SecretKey, Message, ecdsa::Signature};
 
 use hex::FromHex;

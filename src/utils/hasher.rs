@@ -1,7 +1,7 @@
 #![allow(warnings)]
 
 use sha2::{Sha256, Digest};
-use crate::utils::params::Params;
+use crate::utils::operation::Params;
 use crate::encoding::gtv::encode_value as gtv_encode_value;
 
 #[derive(Clone, PartialEq, Debug)]

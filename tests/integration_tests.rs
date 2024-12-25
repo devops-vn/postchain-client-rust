@@ -1,7 +1,7 @@
 use postchain_client::{
-    transport::rest_client::{self, RestClient, RestResponse},
+    transport::client::{self, RestClient, RestResponse},
     utils::{
-        params::{Operation, Params, QueryParams},
+        operation::{Operation, Params, QueryParams},
         transaction::Transaction
     }
 };
@@ -75,7 +75,7 @@ static INIT: Once = Once::new();
 
 async fn initialize_rest_client() -> (String, RestClient<'static>) {
     // **Initialize RestClient**
-    let mut rc = rest_client::RestClient {
+    let mut rc = client::RestClient {
         node_url: vec![POSTCHAIN_SINGLE_NODE_API_URL],
         ..Default::default()
     };
@@ -89,7 +89,7 @@ async fn initialize_rest_client() -> (String, RestClient<'static>) {
     } else {
         let brid = "7A37DD331AC8FED64EEFCCA231B0F975DE7F4371CE5CA44105A5B117DF6DE251".to_string();
 
-        rc = rest_client::RestClient {
+        rc = client::RestClient {
             node_url: vec![POSTCHAIN_MULTI_NODE_API_URL],
             ..Default::default()
         };
@@ -110,7 +110,7 @@ async fn initialize_rest_client() -> (String, RestClient<'static>) {
             }
         });
 
-        rc = rest_client::RestClient {
+        rc = client::RestClient {
             node_url: vec![unsafe { URL.unwrap() }], // Use the static reference
             ..Default::default()
         };
@@ -624,7 +624,7 @@ async fn queries_integration_test_success_cases() {
 
 #[tokio::test]
 async fn queries_integration_test_get_nodes_from_directory() {
-    let mut rc = rest_client::RestClient {
+    let mut rc = client::RestClient {
         node_url: vec![POSTCHAIN_MULTI_NODE_API_URL],
         ..Default::default()
     };

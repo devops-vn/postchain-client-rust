@@ -1,4 +1,4 @@
-use crate::utils::{params::{Operation, Params}, transaction::Transaction};
+use crate::utils::{operation::{Operation, Params}, transaction::Transaction};
 
 use asn1::{Asn1Read, Asn1Readable, Asn1Write, ParseError};
 use std::collections::BTreeMap;
