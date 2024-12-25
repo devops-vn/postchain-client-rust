@@ -242,7 +242,7 @@ fn decode_simple(choice: Choice) -> Params {
       Choice::OCTETSTRING(val) =>
         Params::ByteArray(val),
       Choice::UTF8STRING(val) =>
-        Params::Text(val.as_str()),
+        Params::Text(val.as_str().to_string()),
       _ => 
         Params::Null
   }
@@ -386,7 +386,7 @@ pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params<'a> {
     }
 
     operations.push(Params::Array(vec![
-      Params::Text(op.operation_name.unwrap()),
+      Params::Text(op.operation_name.unwrap().to_string()),
       Params::Array(op_args)
     ]));
   }
@@ -439,12 +439,12 @@ fn gtv_encode_value_integer() {
 
 #[test]
 fn gtv_encode_value_decimal() {
-  assert_roundtrips_value(&Params::Decimal(999.999), &Params::Text("999.999"), "a2090c073939392e393939")
+  assert_roundtrips_value(&Params::Decimal(999.999), &Params::Text("999.999".to_string()), "a2090c073939392e393939")
 }
 
 #[test]
 fn gtv_encode_value_text() {
-  assert_roundtrips_value(&Params::Text("hello!"), &Params::Text("hello!"), "a2080c0668656c6c6f21")
+  assert_roundtrips_value(&Params::Text("hello!".to_string()), &Params::Text("hello!".to_string()), "a2080c0668656c6c6f21")
 }
 
 #[test]
@@ -455,8 +455,8 @@ fn gtv_encode_value_bytearray() {
 #[test]
 fn gtv_encode_value_array() {
   let array = Params::Array(vec![
-          Params::Text("foo1"),
-          Params::Text("foo2"),
+          Params::Text("foo1".to_string()),
+          Params::Text("foo2".to_string()),
       ]);
   assert_roundtrips_value(&array, &array, "a5123010a2060c04666f6f31a2060c04666f6f32")
 }
@@ -471,9 +471,9 @@ fn gtv_encode_value_dict() {
   data2.insert("foo1_1_1", Params::Integer(1000));
 
   data1.insert("foo1_1", Params::Dict(data2));
-  data1.insert("foo1_2", Params::Text("hello!"));
+  data1.insert("foo1_2", Params::Text("hello!".to_string()));
 
-  data.insert("foo", Params::Text("bar"));
+  data.insert("foo", Params::Text("bar".to_string()));
   data.insert("foo1", Params::Dict(data1));
 
   let dict = Params::Dict(data);
@@ -502,7 +502,7 @@ fn gtv_test_sequence_with_boolean() {
 
 #[test]
 fn gtv_test_sequence_with_string() {
-  assert_roundtrips(Some(&mut vec![("foo", Params::Text("bar"))]), 
+  assert_roundtrips(Some(&mut vec![("foo", Params::Text("bar".to_string()))]), 
   "a410300e300c0c03666f6fa2050c03626172");
 }
 
@@ -543,7 +543,7 @@ fn gtv_test_sequence_with_json() {
             "bar": 9,
             "foo": 9.00
         }).to_string();
-  assert_roundtrips(Some(&mut vec![("foo", Params::Text(&data))]), 
+  assert_roundtrips(Some(&mut vec![("foo", Params::Text(data))]), 
   "a420301e301c0c03666f6fa2150c137b22626172223a392c22666f6f223a392e307d");
 }
 
@@ -572,8 +572,8 @@ fn gtv_test_sequence_with_array() {
   let data = &mut vec![(
       "foo",
       Params::Array(vec![
-          Params::Text("bar1"),
-          Params::Text("bar2"),
+          Params::Text("bar1".to_string()),
+          Params::Text("bar2".to_string()),
       ]),
   )];
   assert_roundtrips(Some(data), 
@@ -585,8 +585,8 @@ fn gtv_test_sequence_with_dict() {
   use std::collections::BTreeMap;
 
   let mut params: BTreeMap<&str, Params> = BTreeMap::new();
-  params.insert("foo", Params::Text("bar"));
-  params.insert("foo1", Params::Text("bar1"));
+  params.insert("foo", Params::Text("bar".to_string()));
+  params.insert("foo1", Params::Text("bar1".to_string()));
 
   let data = &mut vec![("foo",  Params::Dict(params))];
 
@@ -602,10 +602,10 @@ fn gtv_test_sequence_with_nested_dict() {
   let mut dict2: BTreeMap<&str, Params> = BTreeMap::new();
   let dict3: BTreeMap<&str, Params> = BTreeMap::new();
 
-  dict1.insert("dict1_foo", Params::Text("dict1_bar"));
+  dict1.insert("dict1_foo", Params::Text("dict1_bar".to_string()));
 
-  dict2.insert("dict2_foo", Params::Text("dict2_bar"));
-  dict2.insert("dict2_foo1", Params::Text("dict2_bar1"));
+  dict2.insert("dict2_foo", Params::Text("dict2_bar".to_string()));
+  dict2.insert("dict2_foo1", Params::Text("dict2_bar1".to_string()));
   
   dict2.insert("dict3_empty_data", Params::Dict(dict3));
 
@@ -625,8 +625,8 @@ fn gtv_test_sequence_with_nested_dict_array() {
   let mut dict2: BTreeMap<&str, Params> = BTreeMap::new();
   let mut dict3: BTreeMap<&str, Params> = BTreeMap::new();
 
-  dict2.insert("dict2_foo", Params::Text("dict2_bar"));
-  dict3.insert("dict3_foo", Params::Text("dict3_bar"));
+  dict2.insert("dict2_foo", Params::Text("dict2_bar".to_string()));
+  dict3.insert("dict3_foo", Params::Text("dict3_bar".to_string()));
 
   let array1 = vec![
     Params::Dict(dict2), Params::Dict(dict3)];
@@ -676,8 +676,8 @@ fn gtv_test_simple_decimal() {
 
 #[test]
 fn gtv_test_simple_string() {
-  assert_roundtrips_simple(Params::Text("abcABC123"), "a20b0c09616263414243313233");
-  assert_roundtrips_simple(Params::Text("utf-8 unicode Trái Tim Ngục Tù ...!@#$%^&*()"), "a2320c307574662d3820756e69636f6465205472c3a1692054696d204e67e1bba5632054c3b9202e2e2e21402324255e262a2829");
+  assert_roundtrips_simple(Params::Text("abcABC123".to_string()), "a20b0c09616263414243313233");
+  assert_roundtrips_simple(Params::Text("utf-8 unicode Trái Tim Ngục Tù ...!@#$%^&*()".to_string()), "a2320c307574662d3820756e69636f6465205472c3a1692054696d204e67e1bba5632054c3b9202e2e2e21402324255e262a2829");
 }
 
 #[test]
@@ -688,7 +688,7 @@ fn gtv_test_simple_byte_array() {
 #[test]
 fn gtv_test_simple_array() {
   assert_roundtrips_simple(Params::Array(vec![
-    Params::Text("foo"), Params::Integer(1)
+    Params::Text("foo".to_string()), Params::Integer(1)
   ]), "a50e300ca2050c03666f6fa303020101");
 }
 
@@ -696,7 +696,7 @@ fn gtv_test_simple_array() {
 fn gtv_test_simple_dict() {
   use std::collections::BTreeMap;
   let mut data: BTreeMap<&str, Params> = BTreeMap::new();
-  data.insert("foo", Params::Text("bar"));
+  data.insert("foo", Params::Text("bar".to_string()));
   assert_roundtrips_simple(Params::Dict(data), "a410300e300c0c03666f6fa2050c03626172");
 }
 
@@ -725,13 +725,13 @@ fn gtv_test_simple_integer_decode() {
 
 #[test]
 fn gtv_test_simple_decimal_decode() {
-  assert_roundtrips_simple_decode("a2080c0639392e393939", Params::Text("99.999"));
+  assert_roundtrips_simple_decode("a2080c0639392e393939", Params::Text("99.999".to_string()));
 }
 
 #[test]
 fn gtv_test_simple_string_decode() {
   assert_roundtrips_simple_decode("a2320c307574662d3820756e69636f6465205472c3a1692054696d204e67e1bba5632054c3b9202e2e2e21402324255e262a2829",
-    Params::Text("utf-8 unicode Trái Tim Ngục Tù ...!@#$%^&*()"))
+    Params::Text("utf-8 unicode Trái Tim Ngục Tù ...!@#$%^&*()".to_string()))
 }
 
 #[test]
@@ -740,7 +740,7 @@ fn gtv_test_simple_bytearray_with_hex_decode() {
   Params::Array(vec![
     Params::Array(vec![
       Params::ByteArray(&hex::decode("0373599A61CC6B3BC02A78C34313E1737AE9CFD56B9BB24360B437D469EFDF3B15").unwrap()),
-      Params::Text("sample_value")
+      Params::Text("sample_value".to_string())
     ])
   ]))
 }
@@ -748,10 +748,10 @@ fn gtv_test_simple_bytearray_with_hex_decode() {
 #[test]
 fn gtv_test_sequence_simple_array_decode() {
   let data = Params::Array(vec![
-    Params::Text("foo"), Params::Integer(1),
-    Params::Text("bar"), Params::Integer(2),
+    Params::Text("foo".to_string()), Params::Integer(1),
+    Params::Text("bar".to_string()), Params::Integer(2),
     Params::Array(vec![]),
-    Params::Text("ca"), Params::Integer(3),
+    Params::Text("ca".to_string()), Params::Integer(3),
     Params::Array(vec![
       Params::Integer(1111),
       Params::Array(vec![
@@ -771,7 +771,7 @@ fn gtv_test_sequence_simple_array_decode() {
 fn gtv_test_sequence_simple_dict_decode() {
   let mut data_btreemap: BTreeMap<&str, Params> = BTreeMap::new();
 
-  data_btreemap.insert("foo", Params::Text("bar"));
+  data_btreemap.insert("foo", Params::Text("bar".to_string()));
   data_btreemap.insert("status", Params::ByteArray("OK".as_bytes()));
 
   let data = Params::Dict(data_btreemap);
@@ -788,17 +788,17 @@ fn gtv_test_sequence_complex_mix_dict_array_decode() {
   let mut data_btreemap: BTreeMap<&str, Params> = BTreeMap::new();
   let mut dict_in: BTreeMap<&str, Params> = BTreeMap::new();
 
-  dict_in.insert("foo", Params::Text("bar"));
+  dict_in.insert("foo", Params::Text("bar".to_string()));
 
-  data_btreemap.insert("status", Params::Text("dict_bar"));
-  data_btreemap.insert("command", Params::Text("dict_bar2"));
+  data_btreemap.insert("status", Params::Text("dict_bar".to_string()));
+  data_btreemap.insert("command", Params::Text("dict_bar2".to_string()));
   data_btreemap.insert("state", Params::Integer(123));
   data_btreemap.insert("dict", Params::Dict(dict_in));
   data_btreemap.insert("array", Params::Array(vec![
-    Params::Text("test array"),
+    Params::Text("test array".to_string()),
     Params::BigInteger(num_bigint::BigInt::from(123456 as i128)),
     Params::Array(vec![
-      Params::Text("test array 2")
+      Params::Text("test array 2".to_string())
     ])
   ]));
   

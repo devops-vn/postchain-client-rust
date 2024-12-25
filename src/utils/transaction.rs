@@ -59,6 +59,13 @@ impl<'a> Transaction<'a> {
         hex::encode(self.tx_rid())
     }
 
+    pub fn sign_from_raw_priv_key(&mut self, private_key: &str) -> Result<(), secp256k1::Error> {
+        let bytes = hex::decode(hex::encode(private_key)).unwrap();
+        let mut priv_key_array = [0u8; 64];
+        priv_key_array.copy_from_slice(&bytes);
+        self.sign(&priv_key_array)
+    }
+
     pub fn sign(&mut self, private_key: &[u8; 64]) -> Result<(), secp256k1::Error> {
         let bytes = Vec::from_hex(private_key).unwrap();
         let mut private_key_bytes = [0u8; 32];

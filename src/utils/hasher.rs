@@ -141,7 +141,7 @@ impl<'a> BinaryTreeFactory {
             let len = dict_value.len();
 
             for (key, value) in dict_value {
-                leaves.push(BinaryTreeNode::new_leaf(Some(Box::new(Params::Text(key))), false));
+                leaves.push(BinaryTreeNode::new_leaf(Some(Box::new(Params::Text(key.to_string()))), false));
                 leaves.push(Self::build_tree(Box::new(value)));
             }
 
@@ -239,14 +239,14 @@ fn test_gtv_hash() {
     use std::collections::BTreeMap;
 
     let data1 = Params::Array(vec![
-        Params::Text("foo"), Params::Array(vec![
-            Params::Text("bar2"), Params::Text("bar2")
+        Params::Text("foo".to_string()), Params::Array(vec![
+            Params::Text("bar2".to_string()), Params::Text("bar2".to_string())
         ])
     ]);
 
     let mut data2_btree: BTreeMap<&str, Params> = BTreeMap::new();
     data2_btree.insert("foo", Params::Integer(-1));
-    data2_btree.insert("foo1", Params::Text("OK"));
+    data2_btree.insert("foo1", Params::Text("OK".to_string()));
     data2_btree.insert("bar", Params::BigInteger(i128::MAX.into()));
     data2_btree.insert("bar1", Params::BigInteger((1000000000000 as i128).into()));
 

@@ -928,12 +928,14 @@ name = "postchain-client"
 version = "0.0.1"
 dependencies = [
  "asn1",
+ "base64",
  "ctor",
  "hex",
  "num-bigint",
  "rand",
  "reqwest",
  "secp256k1",
+ "serde",
  "serde_json",
  "sha2",
  "tokio",

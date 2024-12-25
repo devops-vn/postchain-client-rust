@@ -171,8 +171,8 @@ async fn signed_transactions_integration_test() {
 
     let operation_name = "nestedArguments";
     let params = vec![
-    ("multiStruct", Params::Array(vec![Params::Integer(1),Params::Text("foo"),Params::Text("bar")])),
-    ("arrayExample", Params::Array(vec![Params::Text("foo")])),
+    ("multiStruct", Params::Array(vec![Params::Integer(1),Params::Text("foo".to_string()),Params::Text("bar".to_string())])),
+    ("arrayExample", Params::Array(vec![Params::Text("foo".to_string())])),
     ];
     let ops = vec![
         Operation::from_dict(operation_name, params),
@@ -222,8 +222,8 @@ async fn unsigned_transactions_integration_test() {
     let operation_name = "setMultivalue";
     let params = vec![
         Params::Integer(123),
-        Params::Text("foo"),
-        Params::Text("bar"),
+        Params::Text("foo".to_string()),
+        Params::Text("bar".to_string()),
         ];
     let ops = vec![
         Operation::from_list(operation_name, params),
@@ -240,8 +240,8 @@ async fn unsigned_transactions_integration_test() {
     let operation_name = "setEntityViaStruct";
     let params = vec![
         ("int", Params::Integer(1)),
-        ("string1", Params::Text("foo")),
-        ("string2", Params::Text("bar")),
+        ("string1", Params::Text("foo".to_string())),
+        ("string2", Params::Text("bar".to_string())),
         ];
     let ops = vec![
         Operation::from_dict(operation_name, params),
@@ -257,8 +257,8 @@ async fn unsigned_transactions_integration_test() {
 
     let operation_name = "nestedArguments";
     let params = vec![
-    ("multiStruct", Params::Array(vec![Params::Integer(1),Params::Text("foo"),Params::Text("bar")])),
-    ("arrayExample", Params::Array(vec![Params::Text("foo")])),
+    ("multiStruct", Params::Array(vec![Params::Integer(1),Params::Text("foo".to_string()),Params::Text("bar".to_string())])),
+    ("arrayExample", Params::Array(vec![Params::Text("foo".to_string())])),
     ];
     let ops = vec![
         Operation::from_dict(operation_name, params),
@@ -327,7 +327,7 @@ async fn queries_integration_test_success_cases() {
         &rc,
         &brid,
         "test_string",
-        Some(&mut vec![("arg1", QueryParams::Text("test"))]),
+        Some(&mut vec![("arg1", QueryParams::Text("test".to_string()))]),
         "a2060c0474657374",
     )
     .await;
@@ -354,7 +354,7 @@ async fn queries_integration_test_success_cases() {
     .to_string();
 
     assert_roundtrips(&rc, &brid, "test_json", Some(&mut vec![
-        ("arg1", QueryParams::Text(&data))
+        ("arg1", QueryParams::Text(data))
     ]), "a2360c347b2263697479223a2248434d222c22636f756e747279223a22566965746e616d222c226e616d65223a2243756f6e67204c65227d").await;
 
     // query null
@@ -375,8 +375,8 @@ async fn queries_integration_test_success_cases() {
     let data = &mut vec![(
         "arg1",
         QueryParams::Array(vec![
-            QueryParams::Text("foo"),
-            QueryParams::Text("bar"),
+            QueryParams::Text("foo".to_string()),
+            QueryParams::Text("bar".to_string()),
         ]),
     )];
     assert_roundtrips(
@@ -394,8 +394,8 @@ async fn queries_integration_test_success_cases() {
 
     // query string key map
     let mut params: BTreeMap<&str, QueryParams> = BTreeMap::new();
-    params.insert("foo", QueryParams::Text("bar"));
-    params.insert("foo1", QueryParams::Text("bar1"));
+    params.insert("foo", QueryParams::Text("bar".to_string()));
+    params.insert("foo1", QueryParams::Text("bar1".to_string()));
 
     let data = &mut vec![("arg1", QueryParams::Dict(params))];
 
@@ -417,10 +417,10 @@ async fn queries_integration_test_success_cases() {
     let data = &mut vec![(
         "arg1",
         QueryParams::Array(vec![
-            QueryParams::Text("foo"),
-            QueryParams::Text("bar"),
-            QueryParams::Text("foo1"),
-            QueryParams::Text("bar1"),
+            QueryParams::Text("foo".to_string()),
+            QueryParams::Text("bar".to_string()),
+            QueryParams::Text("foo1".to_string()),
+            QueryParams::Text("bar1".to_string()),
         ]),
     )];
     assert_roundtrips(
@@ -473,8 +473,8 @@ async fn queries_integration_test_success_cases() {
     let data = &mut vec![(
         "arg1",
         QueryParams::Array(vec![
-            QueryParams::Text("foo"),
-            QueryParams::Text("bar"),
+            QueryParams::Text("foo".to_string()),
+            QueryParams::Text("bar".to_string()),
         ]),
     )];
     assert_roundtrips(
@@ -568,7 +568,7 @@ async fn queries_integration_test_success_cases() {
         &rc,
         &brid,
         "test_type_as_arg_name",
-        Some(&mut vec![("type", QueryParams::Text("test"))]),
+        Some(&mut vec![("type", QueryParams::Text("test".to_string()))]),
         "a2060c0474657374",
     )
     .await;
@@ -613,8 +613,8 @@ async fn queries_integration_test_success_cases() {
         &brid,
         "test_complex_object",
         Some(&mut vec![
-            ("client_data", QueryParams::Text(&client_data)),
-            ("server_data", QueryParams::Text(&server_data)),
+            ("client_data", QueryParams::Text(client_data)),
+            ("server_data", QueryParams::Text(server_data)),
             ("args", QueryParams::Dict(args))
         ]),
         "a2020c00",

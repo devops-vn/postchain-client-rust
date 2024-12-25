@@ -43,13 +43,13 @@ impl ToParam for f64 {
 
 impl ToParam for String {
     fn to_param(&self) -> Params<'_> {
-        Params::Text(self)
+        Params::Text(self.to_string())
     }
 }
 
 impl ToParam for &str {
     fn to_param(&self) -> Params<'_> {
-        Params::Text(self)
+        Params::Text(self.to_string())
     }
 }
 
@@ -112,11 +112,11 @@ fn test_decimal_to_param() {
 fn test_string_to_param() {
   let s: String = "Hello!".to_string();
   let r = s.to_param();
-  assert_eq!(Params::Text(&s), r);
+  assert_eq!(Params::Text(s.clone()), r);
 
   let ss: &str = "Hello!";
   let r = ss.to_param();
-  assert_eq!(Params::Text(ss), r);
+  assert_eq!(Params::Text(ss.to_string()), r);
 }
 
 #[test]
@@ -156,8 +156,8 @@ fn test_struct_fileds_to_params() {
     let t3 = test_struct.dict.to_param();
     let t4 = test_struct.brid.to_param();
 
-    assert_eq!(Params::Text("foo"), t1);
-    assert_eq!(Params::Array(vec![Params::Text("arg1"), Params::Text("arg2")]), t2);
+    assert_eq!(Params::Text("foo".to_string()), t1);
+    assert_eq!(Params::Array(vec![Params::Text("arg1".to_string()), Params::Text("arg2".to_string())]), t2);
     assert_eq!(dict_val.to_param(), t3);
     assert_eq!(Params::ByteArray(b"1234"), t4);
 }
