@@ -33,6 +33,16 @@ where
 }
 
 #[allow(dead_code)]
+fn deserialize_byte_array<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let base64_str: String = serde::Deserialize::deserialize(deserializer)?;
+    general_purpose::STANDARD.decode(&base64_str).map_err(serde::de::Error::custom)
+}
+
+
+#[allow(dead_code)]
 fn serialize_bigint<S>(bigint: &BigInt, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
@@ -157,7 +167,6 @@ impl Params {
     where
         T: std::fmt::Debug + serde::Serialize,
     {
-        eprintln!("{:?}", struct_instance);
         let json_value = serde_json::to_value(struct_instance)
             .expect("Failed to convert struct to JSON value");
 
@@ -255,19 +264,20 @@ impl<'a> Into<BTreeMap<String, Params>> for Params {
 
 #[test]
 fn test_serialize_struct_to_param_dict() {
-    #[derive(Debug, Default, serde::Serialize, PartialEq)]
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
     struct TestStruct2 {
         foo: String
     }
 
-    #[derive(Debug, Default, serde::Serialize, PartialEq)]
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
     struct TestStruct1 {
         foo: String,
         bar: i64,
-        #[serde(serialize_with = "serialize_bigint")]
+        #[serde(serialize_with = "serialize_bigint", deserialize_with = "deserialize_bigint")]
         bigint: num_bigint::BigInt,
         ok: bool,
         nested_struct: TestStruct2,
+        #[serde(deserialize_with="deserialize_byte_array")]
         bytearray: Vec<u8>,
     }
 
@@ -278,7 +288,10 @@ fn test_serialize_struct_to_param_dict() {
     };
 
     let r = Params::from_struct(&ts1);
-    println!("{:?}", r);
+    let m: Result<TestStruct1, String> = r.to_struct();
+
+    assert_eq!(ts1, m.unwrap());
+    
 }
 
 #[test]
