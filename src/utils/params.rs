@@ -27,8 +27,23 @@ where
     D: serde::Deserializer<'de>,
 {
     let de_str: String = serde::Deserialize::deserialize(deserializer)?;
+    
     BigInt::parse_bytes(de_str.as_bytes(), 10)
         .ok_or(serde::de::Error::custom("Failed to parse BigInt"))
+}
+
+#[allow(dead_code)]
+fn serialize_bigint<S>(bigint: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let big_int_value = BigInt::parse_bytes(bigint.as_bytes(), 10)
+        .ok_or(serde::ser::Error::custom("Failed to parse BigInt"))?;
+    
+    // Convert BigInt to i128, ensuring it fits within the range
+    let i128_value = big_int_value.to_i128().ok_or(serde::ser::Error::custom("BigInt out of i128 range"))?;
+    
+    serializer.serialize_i128(i128_value)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -227,14 +242,17 @@ fn test_serialize_struct_to_param_dict() {
     struct TestStruct1 {
         foo: String,
         bar: i64,
+        #[serde(serialize_with = "serialize_bigint")]
+        bigint: String,
         ok: bool
     }
 
     let ts1 = TestStruct1 {
-        foo: "".to_string(), bar: 1, ok: true
+        foo: "".to_string(), bar: 1, ok: true, bigint: "170141183460469231731687303715884105726".to_string()
     };
 
-    Params::from_struct(&ts1);
+    let r = Params::from_struct(&ts1);
+    println!("{:?}", r);
 }
 
 #[test]
