@@ -32,7 +32,7 @@ pub enum GTVType {
     BigInteger = 6,
 }
 
-pub trait GTVParams<'a>: Clone {
+pub trait GTVParams: Clone {
     fn to_writer(&self, writer: &mut asn1::Writer) -> asn1::WriteResult;
 }
 
@@ -43,7 +43,7 @@ pub fn write_explicit_element<T: asn1::Asn1Writable>(writer: &mut asn1::Writer, 
 }
 
 #[allow(unused_assignments)]
-impl<'a> GTVParams<'a> for Params<'a> {
+impl<'a> GTVParams for Params {
     fn to_writer(&self, writer: &mut asn1::Writer) -> asn1::WriteResult {
         if let Params::Array(val) = self {
             write_explicit_element(writer,
@@ -164,7 +164,7 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
 
 pub fn encode<'a>(
     query_type: &str,
-    query_args: Option<&'a mut Vec<(&str, Params<'_>)>>,
+    query_args: Option<&'a mut Vec<(&str, Params)>>,
 ) -> Vec<u8> {
     asn1::write(|writer| {
         write_explicit_element(writer,
@@ -206,7 +206,7 @@ fn encode_tx_body<'a>(writer: &mut asn1::Writer, operation: &Operation<'a>) -> a
 }
 
 fn encode_body<'a>(writer: &mut asn1::Writer,
-  query_args: &Option<&'a mut Vec<(&str, Params<'_>)>>)
+  query_args: &Option<&'a mut Vec<(&str, Params)>>)
   -> asn1::WriteResult {
   write_explicit_element(writer,
       &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
@@ -240,7 +240,7 @@ fn decode_simple(choice: Choice) -> Params {
             val.as_bytes().try_into().unwrap()))
       },
       Choice::OCTETSTRING(val) =>
-        Params::ByteArray(val),
+        Params::ByteArray(val.to_vec()),
       Choice::UTF8STRING(val) =>
         Params::Text(val.as_str().to_string()),
       _ => 
@@ -248,7 +248,7 @@ fn decode_simple(choice: Choice) -> Params {
   }
 }
 
-fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<Params<'a>>) {
+fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<Params>) {
   while let Ok(val) = Choice::parse(parser) {
     let op_val = match val {
         Choice::ARRAY(seq) => {
@@ -274,7 +274,7 @@ fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<
   }
 }
 
-fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeMap<String, Params<'a>>) {
+fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeMap<String, Params>) {
   loop {
       let seq = parser.read_element::<asn1::Sequence>();
       if let Err(_) = seq {
@@ -308,13 +308,13 @@ fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeM
         Ok((key.as_str(), op_val))
       });
 
-      let res: (&'a str, Params<'_>) = res.unwrap();
+      let res: (&'a str, Params) = res.unwrap();
 
       btreemap.insert(res.0.to_string(), res.1);
   }
 }
 
-pub fn decode<'a>(data: &'a [u8]) -> Result<Params<'a>, ParseError> {
+pub fn decode<'a>(data: &'a [u8]) -> Result<Params, ParseError> {
   let tag = asn1::Tag::from_bytes(data).unwrap();
   let tag_num = tag.0.as_u8().unwrap() & 0x1f;
 
@@ -347,7 +347,7 @@ pub fn decode<'a>(data: &'a [u8]) -> Result<Params<'a>, ParseError> {
   }
 }
 
-pub fn decode_tx<'a>(data: &'a [u8]) -> Result<Params<'a>, ParseError> {
+pub fn decode_tx<'a>(data: &'a [u8]) -> Result<Params, ParseError> {
   decode(data)
 }
 
@@ -362,18 +362,18 @@ pub fn encode_value_hex_encode(value: &Params) -> String {
   hex::encode(encode_value(value))
 }
 
-pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params<'a> {
-  let mut signers: Vec<Params<'_>> = vec![];
-  let mut operations:Vec<Params<'_>> = vec![];
+pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params {
+  let mut signers: Vec<Params> = vec![];
+  let mut operations:Vec<Params> = vec![];
 
   if let Some(raw_signers) = &tx.signers {
     for signer in raw_signers {
-      signers.push(Params::ByteArray(signer));
+      signers.push(Params::ByteArray(signer.to_vec()));
     }
   }
 
   for op in &tx.operations.clone().unwrap() {
-    let mut op_args: Vec<Params<'_>> = vec![];
+    let mut op_args: Vec<Params> = vec![];
 
     if let Some(op_list) = &op.list {
       for arg in op_list {
@@ -392,7 +392,7 @@ pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params<'a> {
   }
 
   Params::Array(vec![
-    Params::ByteArray(&tx.blockchain_rid),
+    Params::ByteArray(tx.blockchain_rid.to_vec()),
     Params::Array(operations),
     Params::Array(signers)
   ])
@@ -400,7 +400,7 @@ pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params<'a> {
 
 #[allow(dead_code)]
 fn assert_roundtrips<'a>(
-  query_args: Option<&'a mut Vec<(&str, Params<'_>)>>,
+  query_args: Option<&'a mut Vec<(&str, Params)>>,
   expected_value: &str) {
     let result = asn1::write(|writer| {
       encode_body(writer, &query_args)?;
@@ -411,8 +411,8 @@ fn assert_roundtrips<'a>(
 
 #[allow(dead_code)]
 fn assert_roundtrips_value<'a>(
-  value: &Params<'a>,
-  expected_decode: &Params<'a>,
+  value: &Params,
+  expected_decode: &Params,
   expected_value: &str) {
     let encode_result = encode_value(&value);
     assert_eq!(expected_value, hex::encode(encode_result.clone()));
@@ -449,7 +449,7 @@ fn gtv_encode_value_text() {
 
 #[test]
 fn gtv_encode_value_bytearray() {
-  assert_roundtrips_value(&Params::ByteArray(b"123456789"), &Params::ByteArray(b"123456789"), "a10b0409313233343536373839")
+  assert_roundtrips_value(&Params::ByteArray(b"123456789".to_vec()), &Params::ByteArray(b"123456789".to_vec()), "a10b0409313233343536373839")
 }
 
 #[test]
@@ -508,7 +508,7 @@ fn gtv_test_sequence_with_string() {
 
 #[test]
 fn gtv_test_sequence_with_octet_string() {
-  assert_roundtrips(Some(&mut vec![("foo", Params::ByteArray("bar".as_bytes()))]), 
+  assert_roundtrips(Some(&mut vec![("foo", Params::ByteArray("bar".as_bytes().to_vec()))]), 
   "a410300e300c0c03666f6fa1050403626172");
 }
 
@@ -682,7 +682,7 @@ fn gtv_test_simple_string() {
 
 #[test]
 fn gtv_test_simple_byte_array() {
-  assert_roundtrips_simple(Params::ByteArray(b"123456abcedf"), "a10e040c313233343536616263656466");
+  assert_roundtrips_simple(Params::ByteArray(b"123456abcedf".to_vec()), "a10e040c313233343536616263656466");
 }
 
 #[test]
@@ -739,7 +739,7 @@ fn gtv_test_simple_bytearray_with_hex_decode() {
   assert_roundtrips_simple_decode("a53b3039a5373035a12304210373599a61cc6b3bc02a78c34313e1737ae9cfd56b9bb24360b437d469efdf3b15a20e0c0c73616d706c655f76616c7565",
   Params::Array(vec![
     Params::Array(vec![
-      Params::ByteArray(&hex::decode("0373599A61CC6B3BC02A78C34313E1737AE9CFD56B9BB24360B437D469EFDF3B15").unwrap()),
+      Params::ByteArray(hex::decode("0373599A61CC6B3BC02A78C34313E1737AE9CFD56B9BB24360B437D469EFDF3B15").unwrap()),
       Params::Text("sample_value".to_string())
     ])
   ]))
@@ -772,7 +772,7 @@ fn gtv_test_sequence_simple_dict_decode() {
   let mut data_btreemap: BTreeMap<String, Params> = BTreeMap::new();
 
   data_btreemap.insert("foo".to_string(), Params::Text("bar".to_string()));
-  data_btreemap.insert("status".to_string(), Params::ByteArray("OK".as_bytes()));
+  data_btreemap.insert("status".to_string(), Params::ByteArray("OK".as_bytes().to_vec()));
 
   let data = Params::Dict(data_btreemap);
 

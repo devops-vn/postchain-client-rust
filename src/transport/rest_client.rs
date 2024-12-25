@@ -261,7 +261,7 @@ impl<'a> RestClient<'a> {
         query_prefix: Option<&str>,
         query_type: &'a str,
         query_params: Option<&'a mut Vec<(&'a str, &'a str)>>,
-        query_args: Option<&'a mut Vec<(&str, crate::utils::params::Params<'_>)>>,
+        query_args: Option<&'a mut Vec<(&str, crate::utils::params::Params)>>,
     ) -> Result<RestResponse, RestError> {
         let mut query_prefix_str = "query_gtv";
 

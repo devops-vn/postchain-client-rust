@@ -14,14 +14,14 @@ enum NodeType {
 }
 
 #[derive(Clone, Debug)]
-struct BinaryTreeNode<'a> {
-    left: Option<Box<BinaryTreeNode<'a>>>,
-    right: Option<Box<BinaryTreeNode<'a>>>,
-    value: Option<Box<Params<'a>>>,
+struct BinaryTreeNode {
+    left: Option<Box<BinaryTreeNode>>,
+    right: Option<Box<BinaryTreeNode>>,
+    value: Option<Box<Params>>,
     type_of_node: NodeType
 }
 
-impl<'a> Default for BinaryTreeNode<'a> {
+impl<'a> Default for BinaryTreeNode {
     fn default() -> Self {
         BinaryTreeNode {
             left: None,
@@ -32,14 +32,14 @@ impl<'a> Default for BinaryTreeNode<'a> {
     }
 }
 
-impl<'a> BinaryTreeNode<'a> {
-    fn new_node(left: Option<Box<BinaryTreeNode<'a>>>, right: Option<Box<BinaryTreeNode<'a>>>, value: Option<Box<Params<'a>>>, type_of_node: NodeType) -> Self {
+impl<'a> BinaryTreeNode {
+    fn new_node(left: Option<Box<BinaryTreeNode>>, right: Option<Box<BinaryTreeNode>>, value: Option<Box<Params>>, type_of_node: NodeType) -> Self {
         BinaryTreeNode {
             left, right, value, type_of_node
         }
     }
 
-    fn new_leaf(value: Option<Box<Params<'a>>>, is_empty_leaf: bool) -> Box<Self> {
+    fn new_leaf(value: Option<Box<Params>>, is_empty_leaf: bool) -> Box<Self> {
         let type_of_node = match is_empty_leaf {
             true => NodeType::EmptyLeaf,
             false => NodeType::Leaf,
@@ -55,7 +55,7 @@ impl<'a> BinaryTreeNode<'a> {
 struct BinaryTreeFactory;
 
 impl<'a> BinaryTreeFactory {
-    fn process_layer(leaves: Vec<Box<BinaryTreeNode<'_>>>) -> Box<BinaryTreeNode<'_>> {
+    fn process_layer(leaves: Vec<Box<BinaryTreeNode>>) -> Box<BinaryTreeNode> {
         if leaves.is_empty() {
             panic!("Cannot work on empty arrays");
         }
@@ -82,7 +82,7 @@ impl<'a> BinaryTreeFactory {
         return Self::process_layer(results);
     }
 
-    fn process_array_node(params: Box<Params<'a>>) -> Box<BinaryTreeNode<'_>> {
+    fn process_array_node(params: Box<Params>) -> Box<BinaryTreeNode> {
         if params.clone().is_empty() {
             let left= BinaryTreeNode::new_leaf(None, true);
             let right= BinaryTreeNode::new_leaf(None, true);
@@ -124,7 +124,7 @@ impl<'a> BinaryTreeFactory {
         }
     }
 
-    fn process_dict_node(params: Box<Params<'a>>) -> Box<BinaryTreeNode<'_>> {
+    fn process_dict_node(params: Box<Params>) -> Box<BinaryTreeNode> {
 
         if params.clone().is_empty() {
             let left= BinaryTreeNode::new_leaf(None, true);
@@ -161,11 +161,11 @@ impl<'a> BinaryTreeFactory {
         }
     }
 
-    fn process_leaf(params: Box<Params<'a>>) -> Box<BinaryTreeNode<'_>> {
+    fn process_leaf(params: Box<Params>) -> Box<BinaryTreeNode> {
         BinaryTreeNode::new_leaf(Some(params), false)
     }
 
-    fn build_tree(params: Box<Params<'a>>) -> Box<BinaryTreeNode<'_>> {
+    fn build_tree(params: Box<Params>) -> Box<BinaryTreeNode> {
         match *params {
             Params::Array(_) =>
                 Self::process_array_node(params),
@@ -191,7 +191,7 @@ impl MerkleHashCalculator {
         hasher.finalize().to_vec()
     }
 
-    fn calculate_leaf_hash(value: Option<Box<Params<'_>>>) -> Vec<u8> {
+    fn calculate_leaf_hash(value: Option<Box<Params>>) -> Vec<u8> {
         let mut buffer = vec![HASH_PREFIX_LEAF];
         let encode_value = gtv_encode_value(&value.unwrap());
         buffer.extend_from_slice(&encode_value);
@@ -205,7 +205,7 @@ impl MerkleHashCalculator {
         Self::sha256(&buffer)
     }
 
-    fn calculate_merkle_hash(btn: Box<BinaryTreeNode<'_>>) -> Vec<u8>{
+    fn calculate_merkle_hash(btn: Box<BinaryTreeNode>) -> Vec<u8>{
         if btn.type_of_node == NodeType::EmptyLeaf {
             return [0; 32].to_vec();
         }
@@ -228,7 +228,7 @@ impl MerkleHashCalculator {
     }
 }
 
-pub fn gtv_hash(value: Params<'_>) -> Vec<u8> {
+pub fn gtv_hash(value: Params) -> Vec<u8> {
     let tree = BinaryTreeFactory::build_tree(Box::new(value));
     let hash_value = MerkleHashCalculator::calculate_merkle_hash(tree);
     return hash_value;

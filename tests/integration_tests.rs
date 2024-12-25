@@ -23,7 +23,7 @@ async fn assert_roundtrips<'a>(
     rc: &RestClient<'_>,
     brid: &str,
     query_type: &str,
-    query_args: Option<&'a mut Vec<(&str, Params<'_>)>>,
+    query_args: Option<&'a mut Vec<(&str, Params)>>,
     expected_value: &str,
 ) {
     let do_query = rc.query(&brid, None, query_type, None, query_args).await;
@@ -339,7 +339,7 @@ async fn queries_integration_test_success_cases() {
         "test_byte_array",
         Some(&mut vec![(
             "arg1",
-            QueryParams::ByteArray("test".as_bytes()),
+            QueryParams::ByteArray("test".as_bytes().to_vec()),
         )]),
         "a106040474657374",
     )

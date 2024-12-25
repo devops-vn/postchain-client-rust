@@ -6,20 +6,20 @@ use num_bigint::BigInt;
 use base64::{Engine as _, engine::general_purpose};
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum Params<'a> {
+pub enum Params {
     Null,
     Boolean(bool),
     Integer(i64),
     BigInteger(BigInt),
     Decimal(f64),
     Text(String),
-    ByteArray(&'a [u8]),
-    Array(Vec<Params<'a>>),
-    Dict(BTreeMap<String, Params<'a>>),
+    ByteArray(Vec<u8>),
+    Array(Vec<Params>),
+    Dict(BTreeMap<String, Params>)
 }
 
-pub type QueryParams<'a> = Params<'a>;
-pub type OperationParams<'a> = Params<'a>;
+pub type QueryParams = Params;
+pub type OperationParams = Params;
 
 #[allow(dead_code)]
 fn deserialize_bigint<'de, D>(deserializer: D) -> Result<BigInt, D::Error>
@@ -33,23 +33,18 @@ where
 }
 
 #[allow(dead_code)]
-fn serialize_bigint<S>(bigint: &String, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_bigint<S>(bigint: &BigInt, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
-    let big_int_value = BigInt::parse_bytes(bigint.as_bytes(), 10)
-        .ok_or(serde::ser::Error::custom("Failed to parse BigInt"))?;
-    
-    // Convert BigInt to i128, ensuring it fits within the range
-    let i128_value = big_int_value.to_i128().ok_or(serde::ser::Error::custom("BigInt out of i128 range"))?;
-    
-    serializer.serialize_i128(i128_value)
+    let bigint_str = bigint.to_string();
+    serializer.serialize_str(&bigint_str)
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Operation<'a> {
-    pub dict: Option<Vec<(&'a str, Params<'a>)>>,
-    pub list: Option<Vec<Params<'a>>>,
+    pub dict: Option<Vec<(&'a str, Params)>>,
+    pub list: Option<Vec<Params>>,
     pub operation_name: Option<&'a str>,
 }
 
@@ -63,8 +58,18 @@ impl<'a> Default for Operation<'a> {
     }
 }
 
+fn is_vec_u8(value: &Vec<serde_json::Value>) -> bool {
+    value.iter().all(|v| {
+            if let serde_json::Value::Number(n) = v {
+                n.is_u64() && n.as_u64().unwrap() <= u8::MAX as u64
+            } else {
+                false
+            }
+        })    
+}
+
 impl<'a> Operation<'a> {
-    pub fn from_dict(operation_name: &'a str, params: Vec<(&'a str, Params<'a>)>) -> Self {
+    pub fn from_dict(operation_name: &'a str, params: Vec<(&'a str, Params)>) -> Self {
         Self {
             dict: Some(params),
             operation_name: Some(operation_name),
@@ -72,7 +77,7 @@ impl<'a> Operation<'a> {
         }
     }
 
-    pub fn from_list(operation_name: &'a str, params: Vec<Params<'a>>) -> Self {
+    pub fn from_list(operation_name: &'a str, params: Vec<Params>) -> Self {
         Self {
             list: Some(params),
             operation_name: Some(operation_name),
@@ -81,7 +86,7 @@ impl<'a> Operation<'a> {
     }
 }
 
-impl<'a> Params<'a> {
+impl Params {
     pub fn decimal_to_string(val: Box<f64>) -> String {
         val.to_string()
     }
@@ -148,18 +153,19 @@ impl<'a> Params<'a> {
         }
     }
 
-    pub fn from_struct<T>(struct_instance: &T) -> Params<'a>
+    pub fn from_struct<T>(struct_instance: &T) -> Params
     where
         T: std::fmt::Debug + serde::Serialize,
     {
+        eprintln!("{:?}", struct_instance);
         let json_value = serde_json::to_value(struct_instance)
             .expect("Failed to convert struct to JSON value");
 
         Params::Dict(Self::json_value_to_params_dict(json_value))
     }
 
-    fn json_value_to_params_dict(value: serde_json::Value) -> BTreeMap<String, Params<'a>> {
-        let mut dict: BTreeMap<String, Params<'a>> = BTreeMap::new();
+    fn json_value_to_params_dict(value: serde_json::Value) -> BTreeMap<String, Params> {
+        let mut dict: BTreeMap<String, Params> = BTreeMap::new();
 
         if let serde_json::Value::Object(map) = value {
             for (key, val) in map {
@@ -170,7 +176,7 @@ impl<'a> Params<'a> {
         dict
     }
 
-    fn value_to_params(value: serde_json::Value) -> Params<'a> {
+    fn value_to_params(value: serde_json::Value) -> Params {
         match value {
             serde_json::Value::Null => Params::Null,
             serde_json::Value::Bool(b) => Params::Boolean(b),
@@ -183,14 +189,25 @@ impl<'a> Params<'a> {
                     Params::Null
                 }
             },
-            serde_json::Value::String(s) => Params::Text(s),
+            serde_json::Value::String(s) => {
+                match BigInt::parse_bytes(s.as_bytes(), 10) {
+                    Some(big_int) => Params::BigInteger(big_int),
+                    None => Params::Text(s),
+                }
+            },
             serde_json::Value::Array(arr) => {
+                let is_vec_u8 = is_vec_u8(&arr);
+                if is_vec_u8 {
+                    let barr: Vec<u8> = arr.iter().map(|v|{v.as_u64().unwrap() as u8}).collect();
+                    return Params::ByteArray(barr)
+                }
                 let params_array: Vec<Params> = arr.into_iter().map(Self::value_to_params).collect();
                 Params::Array(params_array)
             },
-            serde_json::Value::Object(_) => {
-                Params::Null
-            },
+            serde_json::Value::Object(dict) => {
+                let params_dict: BTreeMap<String, Params> = dict.into_iter().map(|(k, v)| ( k, Self::value_to_params(v))).collect();
+                Params::Dict(params_dict)
+            }
         }
     }
 
@@ -218,8 +235,8 @@ impl<'a> Params<'a> {
     }
 }
 
-impl<'a> Into<Vec<Params<'a>>> for Params<'a> {
-    fn into(self) -> Vec<Params<'a>> {
+impl<'a> Into<Vec<Params>> for Params {
+    fn into(self) -> Vec<Params> {
         match self {
             Params::Array(array) => array,
             _ => panic!("Cannot convert {:?} into Vec<Params>", self),
@@ -227,8 +244,8 @@ impl<'a> Into<Vec<Params<'a>>> for Params<'a> {
     }
 }
 
-impl<'a> Into<BTreeMap<String, Params<'a>>> for Params<'a> {
-    fn into(self) -> BTreeMap<String, Params<'a>> {
+impl<'a> Into<BTreeMap<String, Params>> for Params {
+    fn into(self) -> BTreeMap<String, Params> {
         match self {
             Params::Dict(dict) => dict,
             _ => panic!("Cannot convert {:?} into BTreeMap", self),
@@ -238,17 +255,26 @@ impl<'a> Into<BTreeMap<String, Params<'a>>> for Params<'a> {
 
 #[test]
 fn test_serialize_struct_to_param_dict() {
-     #[derive(Debug, Default, serde::Serialize, PartialEq)]
+    #[derive(Debug, Default, serde::Serialize, PartialEq)]
+    struct TestStruct2 {
+        foo: String
+    }
+
+    #[derive(Debug, Default, serde::Serialize, PartialEq)]
     struct TestStruct1 {
         foo: String,
         bar: i64,
         #[serde(serialize_with = "serialize_bigint")]
-        bigint: String,
-        ok: bool
+        bigint: num_bigint::BigInt,
+        ok: bool,
+        nested_struct: TestStruct2,
+        bytearray: Vec<u8>,
     }
 
     let ts1 = TestStruct1 {
-        foo: "".to_string(), bar: 1, ok: true, bigint: "170141183460469231731687303715884105726".to_string()
+        foo: "foo".to_string(), bar: 1, ok: true,
+        bigint: num_bigint::BigInt::from(170141183460469231731687303715884105727 as i128),
+        nested_struct: TestStruct2{foo: "bar".to_string()}, bytearray: vec![1, 2, 3, 4, 5]
     };
 
     let r = Params::from_struct(&ts1);
@@ -305,7 +331,7 @@ fn test_deserialize_param_dict_to_struct() {
     params.insert("dict".to_string(), Params::Dict(nested_params));
     params.insert("l".to_string(), Params::Boolean(true));
     params.insert("n".to_string(), Params::Decimal(3.14));
-    params.insert("m".to_string(), Params::ByteArray(bytearray_value));
+    params.insert("m".to_string(), Params::ByteArray(bytearray_value.to_vec()));
     params.insert("array".to_string(), Params::Array(vec![Params::Integer(1), Params::Text("foo".to_string())]));
 
     let params_dict = Params::Dict(params);
