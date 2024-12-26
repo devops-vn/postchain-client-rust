@@ -1,3 +1,28 @@
+//! GTV (Generic Type Value) encoding and decoding module
+//! 
+//! This module provides functionality for encoding and decoding GTV format, which is a flexible
+//! data serialization format supporting various data types including null, boolean, integer,
+//! string, arrays, dictionaries, and big integers. It uses ASN.1 encoding rules for data representation.
+//! 
+//! # Features
+//! 
+//! * Basic types: null, boolean, integer, string, byte array
+//! * Complex types: arrays, dictionaries
+//! * Special types: big integers, decimals
+//! * Transaction encoding/decoding
+//! * ASN.1-based encoding rules
+//! 
+//! # Examples
+//! 
+//! ```rust
+//! // Encoding a simple value
+//! let value = Params::Text("hello".to_string());
+//! let encoded = encode_value(&value);
+//! 
+//! // Decoding a value
+//! let decoded = decode(&encoded).unwrap();
+//! ```
+
 use crate::utils::{operation::{Operation, Params}, transaction::Transaction};
 
 use asn1::{Asn1Read, Asn1Readable, Asn1Write, ParseError};
@@ -100,6 +125,15 @@ impl<'a> GTVParams for Params {
     }
 }
 
+/// Encodes a transaction into a byte vector using GTV format
+/// 
+/// # Arguments
+/// 
+/// * `tx` - Reference to the Transaction to be encoded
+/// 
+/// # Returns
+/// 
+/// * `Vec<u8>` - Encoded transaction as a byte vector
 pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
   asn1::write(|writer| {
     write_explicit_element(writer,
@@ -162,6 +196,16 @@ pub fn encode_tx<'a>(tx: &Transaction<'a>) -> Vec<u8> {
   }).unwrap()
 }
 
+/// Encodes a query and its arguments into GTV format
+/// 
+/// # Arguments
+/// 
+/// * `query_type` - The type of query to encode
+/// * `query_args` - Optional vector of query arguments as (name, value) pairs
+/// 
+/// # Returns
+/// 
+/// * `Vec<u8>` - Encoded query as a byte vector
 pub fn encode<'a>(
     query_type: &str,
     query_args: Option<&'a mut Vec<(&str, Params)>>,
@@ -180,6 +224,16 @@ pub fn encode<'a>(
     .unwrap()
 }
 
+/// Encodes the body of a transaction operation
+/// 
+/// # Arguments
+/// 
+/// * `writer` - The ASN.1 writer to write to
+/// * `operation` - The operation to encode
+/// 
+/// # Returns
+/// 
+/// * `asn1::WriteResult` - Result of the write operation
 fn encode_tx_body<'a>(writer: &mut asn1::Writer, operation: &Operation<'a>) -> asn1::WriteResult {
   write_explicit_element(writer, &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
     // Operation name
@@ -205,6 +259,16 @@ fn encode_tx_body<'a>(writer: &mut asn1::Writer, operation: &Operation<'a>) -> a
   Ok(())
 }
 
+/// Encodes the body of a query
+/// 
+/// # Arguments
+/// 
+/// * `writer` - The ASN.1 writer to write to
+/// * `query_args` - Optional query arguments to encode
+/// 
+/// # Returns
+/// 
+/// * `asn1::WriteResult` - Result of the write operation
 fn encode_body<'a>(writer: &mut asn1::Writer,
   query_args: &Option<&'a mut Vec<(&str, Params)>>)
   -> asn1::WriteResult {
@@ -229,6 +293,15 @@ fn encode_body<'a>(writer: &mut asn1::Writer,
   Ok(())
 }
 
+/// Decodes a simple GTV value from a Choice enum
+/// 
+/// # Arguments
+/// 
+/// * `choice` - The Choice enum variant to decode
+/// 
+/// # Returns
+/// 
+/// * `Params` - The decoded parameter value
 fn decode_simple(choice: Choice) -> Params {
   match choice {
       Choice::INTEGER(val) =>
@@ -248,6 +321,12 @@ fn decode_simple(choice: Choice) -> Params {
   }
 }
 
+/// Decodes a sequence of values into an array
+/// 
+/// # Arguments
+/// 
+/// * `parser` - The ASN.1 parser to read from
+/// * `vec_array` - Vector to store the decoded values
 fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<Params>) {
   while let Ok(val) = Choice::parse(parser) {
     let op_val = match val {
@@ -274,6 +353,12 @@ fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<
   }
 }
 
+/// Decodes a sequence of key-value pairs into a dictionary
+/// 
+/// # Arguments
+/// 
+/// * `parser` - The ASN.1 parser to read from
+/// * `btreemap` - BTreeMap to store the decoded key-value pairs
 fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeMap<String, Params>) {
   loop {
       let seq = parser.read_element::<asn1::Sequence>();
@@ -314,6 +399,15 @@ fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeM
   }
 }
 
+/// Decodes a byte slice into a GTV value
+/// 
+/// # Arguments
+/// 
+/// * `data` - Byte slice containing the encoded GTV data
+/// 
+/// # Returns
+/// 
+/// * `Result<Params, ParseError>` - The decoded value or an error if decoding fails
 pub fn decode<'a>(data: &'a [u8]) -> Result<Params, ParseError> {
   let tag = asn1::Tag::from_bytes(data).unwrap();
   let tag_num = tag.0.as_u8().unwrap() & 0x1f;
@@ -347,10 +441,28 @@ pub fn decode<'a>(data: &'a [u8]) -> Result<Params, ParseError> {
   }
 }
 
+/// Decodes a transaction from a byte slice
+/// 
+/// # Arguments
+/// 
+/// * `data` - Byte slice containing the encoded transaction
+/// 
+/// # Returns
+/// 
+/// * `Result<Params, ParseError>` - The decoded transaction or an error if decoding fails
 pub fn decode_tx<'a>(data: &'a [u8]) -> Result<Params, ParseError> {
   decode(data)
 }
 
+/// Encodes a single GTV value into a byte vector
+/// 
+/// # Arguments
+/// 
+/// * `value` - The value to encode
+/// 
+/// # Returns
+/// 
+/// * `Vec<u8>` - The encoded value as a byte vector
 pub fn encode_value(value: &Params) -> Vec<u8> {
   asn1::write(|writer| {
       value.to_writer(writer)?;
@@ -358,10 +470,28 @@ pub fn encode_value(value: &Params) -> Vec<u8> {
   }).unwrap()
 }
 
+/// Encodes a GTV value and returns it as a hexadecimal string
+/// 
+/// # Arguments
+/// 
+/// * `value` - The value to encode
+/// 
+/// # Returns
+/// 
+/// * `String` - Hexadecimal representation of the encoded value
 pub fn encode_value_hex_encode(value: &Params) -> String {
   hex::encode(encode_value(value))
 }
 
+/// Converts a transaction into a GTV representation for visualization
+/// 
+/// # Arguments
+/// 
+/// * `tx` - Reference to the transaction to convert
+/// 
+/// # Returns
+/// 
+/// * `Params` - GTV representation of the transaction
 pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params {
   let mut signers: Vec<Params> = vec![];
   let mut operations:Vec<Params> = vec![];
@@ -399,6 +529,12 @@ pub fn to_draw_gtx<'a>(tx: &'a Transaction<'a>) -> Params {
 } 
 
 #[allow(dead_code)]
+/// Helper function for testing GTV encoding/decoding roundtrips
+/// 
+/// # Arguments
+/// 
+/// * `query_args` - Optional query arguments to test
+/// * `expected_value` - Expected hexadecimal string after encoding
 fn assert_roundtrips<'a>(
   query_args: Option<&'a mut Vec<(&str, Params)>>,
   expected_value: &str) {
@@ -410,6 +546,13 @@ fn assert_roundtrips<'a>(
 }
 
 #[allow(dead_code)]
+/// Helper function for testing GTV value encoding/decoding roundtrips
+/// 
+/// # Arguments
+/// 
+/// * `value` - Value to test
+/// * `expected_decode` - Expected decoded value
+/// * `expected_value` - Expected hexadecimal string after encoding
 fn assert_roundtrips_value<'a>(
   value: &Params,
   expected_decode: &Params,
@@ -640,6 +783,12 @@ fn gtv_test_sequence_with_nested_dict_array() {
 }
 
 #[allow(dead_code)]
+/// Helper function for testing simple GTV value encoding
+/// 
+/// # Arguments
+/// 
+/// * `op` - Value to encode
+/// * `expected_value` - Expected hexadecimal string after encoding
 fn assert_roundtrips_simple(op: Params, expected_value: &str) {
   let result = asn1::write(|writer| {
       op.to_writer(writer)?;
@@ -701,6 +850,12 @@ fn gtv_test_simple_dict() {
 }
 
 #[allow(dead_code)]
+/// Helper function for testing simple GTV value decoding
+/// 
+/// # Arguments
+/// 
+/// * `data` - Hexadecimal string to decode
+/// * `expected_value` - Expected decoded value
 fn assert_roundtrips_simple_decode(data: &str, expected_value: Params) {
   let hex_decode_data = hex::decode(data).unwrap();
   let result = decode(&hex_decode_data).unwrap();

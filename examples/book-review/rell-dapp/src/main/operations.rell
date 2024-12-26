@@ -1,0 +1,20 @@
+operation create_book_with_admin(isbn: text, title: text, author: text) {
+  val adminPubkey = chain_context.args.admin_pubkey;
+  require(op_context.is_signer(adminPubkey), "Only admin can create books");
+
+  create book ( .isbn = isbn, .title = title, .author = author );
+}
+
+operation create_book(isbn: text, title: text, author: text) {
+  create book(isbn = isbn, title = title, author = author);
+}
+
+operation create_book_review(isbn: text, reviewer_name: text, review: text, rating: integer) {
+  val book = require(book @? { .isbn == isbn }, "Book with isbn %s not found".format(isbn));
+  create book_review (
+    book,
+    reviewer_name,
+    review,
+    rating
+  );
+}

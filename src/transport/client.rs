@@ -1,3 +1,11 @@
+//! Client module for interacting with Postchain blockchain nodes via REST API.
+//! 
+//! This module provides functionality for:
+//! - Querying blockchain nodes
+//! - Managing transactions
+//! - Handling REST API communication
+//! - Error handling
+
 extern crate serde_json;
 extern crate url;
 
@@ -9,24 +17,42 @@ use std::{error::Error, time::Duration};
 
 use crate::utils::transaction::{Transaction, TransactionStatus};
 
+/// A REST client for interacting with Postchain blockchain nodes.
+/// 
+/// This client handles communication with blockchain nodes, including:
+/// - Transaction submission and status checking
+/// - Node discovery and management
+/// - Query execution
+/// - Error handling
 #[derive(Debug)]
 pub struct RestClient<'a> {
+    /// List of node URLs to connect to
     pub node_url: Vec<&'a str>,
+    /// Request timeout in seconds
     pub request_time_out: u64,
+    /// Number of attempts to poll for transaction status
     pub poll_attemps: u64,
+    /// Interval between poll attempts in seconds
     pub poll_attemp_interval_time: u64
 }
 
+/// Response types that can be returned from REST API calls.
 #[derive(Debug)]
 pub enum RestResponse {
+    /// Plain text response
     String(String),
+    /// JSON response
     Json(Value),
+    /// Binary response
     Bytes(Vec<u8>),
 }
 
+/// HTTP methods supported by the REST client.
 #[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RestRequestMethod {
+    /// HTTP GET method
     GET,
+    /// HTTP POST method
     POST,
 }
 
@@ -41,17 +67,25 @@ impl<'a> Default for RestClient<'a> {
     }
 }
 
+/// Types of errors that can occur during REST operations
 #[derive(Debug)]
 enum TypeError {
+    /// Error from the reqwest client
     FromReqClient,
+    /// Error from the REST API
     FromRestApi,
 }
 
+/// Error type for REST operations
 #[derive(Debug)]
 pub struct RestError {
+    /// HTTP status code if available
     status_code: Option<String>,
+    /// Error message if available
     error_str: Option<String>,
+    /// JSON error response if available
     error_json: Option<Value>,
+    /// Type of error that occurred
     type_error: TypeError,
 }
 
@@ -86,7 +120,22 @@ impl std::fmt::Display for RestError {
 }
 
 impl<'a> RestClient<'a> {
-
+    /// Retrieves a list of node URLs from the blockchain directory.
+    ///
+    /// # Arguments
+    /// * `brid` - Blockchain RID (Resource Identifier)
+    ///
+    /// # Returns
+    /// * `Result<Vec<String>, RestError>` - List of node URLs on success, or error on failure
+    ///
+    /// # Example
+    /// ```no_run
+    /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let client = RestClient::default();
+    /// let nodes = client.get_nodes_from_directory("blockchain_rid").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub async fn get_nodes_from_directory(&self, brid: &str) -> Result<Vec<String>, RestError> {
         let directory_brid = self.get_blockchain_rid(0).await?;
 
@@ -129,6 +178,13 @@ impl<'a> RestClient<'a> {
         }
     }
 
+    /// Retrieves the blockchain RID for a given blockchain IID.
+    ///
+    /// # Arguments
+    /// * `blockchain_iid` - Blockchain Instance Identifier
+    ///
+    /// # Returns
+    /// * `Result<String, RestError>` - Blockchain RID on success, or error on failure
     pub async fn get_blockchain_rid(&self, blockchain_iid: u8) -> Result<String, RestError> {
         let resp: Result<RestResponse, RestError> = self
             .postchain_rest_api(
@@ -153,6 +209,14 @@ impl<'a> RestClient<'a> {
         }
     }
 
+    /// Prints error information and determines if the error should be ignored.
+    ///
+    /// # Arguments
+    /// * `error` - The REST error to print
+    /// * `ignore_all_errors` - Whether to ignore all errors
+    ///
+    /// # Returns
+    /// * `bool` - Whether the error should stop execution
     pub fn print_error(&self, error: &RestError, ignore_all_errors: bool) -> bool {
         println!(">> Error(s)");
 
@@ -172,16 +236,37 @@ impl<'a> RestClient<'a> {
         true
     }
 
+    /// Updates the list of node URLs used by the client.
+    ///
+    /// # Arguments
+    /// * `node_urls` - New list of node URLs to use
     pub fn update_node_urls(&mut self, node_urls: &'a Vec<String>) {
         self.node_url = node_urls.iter().map(String::as_str).collect();
     }
 
     // Transaction status
     // GET /tx/{blockchain_rid}/{transaction_rid}/status
+    /// Gets the status of a transaction without polling.
+    ///
+    /// # Arguments
+    /// * `blockchain_rid` - Blockchain RID
+    /// * `tx_rid` - Transaction RID
+    ///
+    /// # Returns
+    /// * `Result<TransactionStatus, RestError>` - Transaction status or error
     pub async fn get_transaction_status(&self, blockchain_rid: &str, tx_rid: &str) -> Result<TransactionStatus, RestError> {
         self.get_transaction_status_with_poll(blockchain_rid, tx_rid, 0).await
     }
 
+    /// Gets the status of a transaction with polling for confirmation.
+    ///
+    /// # Arguments
+    /// * `blockchain_rid` - Blockchain RID
+    /// * `tx_rid` - Transaction RID
+    /// * `attempts` - Number of polling attempts made so far
+    ///
+    /// # Returns
+    /// * `Result<TransactionStatus, RestError>` - Transaction status or error
     pub async fn get_transaction_status_with_poll(&self, blockchain_rid: &str, tx_rid: &str, attempts: u64) -> Result<TransactionStatus, RestError> {
         tracing::info!("Waiting for transaction status of blockchain RID: {} with tx: {} | attempt: {}", blockchain_rid, tx_rid, attempts);
 
@@ -230,6 +315,13 @@ impl<'a> RestClient<'a> {
 
     // Submit transaction
     // POST /tx/{blockchainRid}
+    /// Sends a transaction to the blockchain.
+    ///
+    /// # Arguments
+    /// * `tx` - Transaction to send
+    ///
+    /// # Returns
+    /// * `Result<RestResponse, RestError>` - Response from the blockchain or error
     pub async fn send_transaction(&self, tx: &Transaction<'a>) -> Result<RestResponse, RestError> {
         let txe = tx.gvt_hex_encoded();
 
@@ -255,6 +347,17 @@ impl<'a> RestClient<'a> {
 
     // Make a query with GTV encoded response
     // POST /query_gtv/{blockchainRid}
+    /// Executes a query on the blockchain.
+    ///
+    /// # Arguments
+    /// * `brid` - Blockchain RID
+    /// * `query_prefix` - Optional prefix for the query endpoint
+    /// * `query_type` - Type of query to execute
+    /// * `query_params` - Optional query parameters
+    /// * `query_args` - Optional query arguments
+    ///
+    /// # Returns
+    /// * `Result<RestResponse, RestError>` - Query response or error
     pub async fn query(
         &self,
         brid: &str,
@@ -282,6 +385,17 @@ impl<'a> RestClient<'a> {
         ).await
     }
 
+    /// Makes a REST API request to a Postchain node.
+    ///
+    /// # Arguments
+    /// * `method` - HTTP method to use
+    /// * `path_segments` - URL path segments
+    /// * `query_params` - Query parameters
+    /// * `query_body_json` - JSON request body
+    /// * `query_body_raw` - Raw request body
+    ///
+    /// # Returns
+    /// * `Result<RestResponse, RestError>` - API response or error
     async fn postchain_rest_api(
         &self,
         method: RestRequestMethod,
@@ -308,6 +422,18 @@ impl<'a> RestClient<'a> {
         }
     }
 
+    /// Makes a REST API request with retry logic for failed nodes.
+    ///
+    /// # Arguments
+    /// * `method` - HTTP method to use
+    /// * `path_segments` - URL path segments
+    /// * `query_params` - Query parameters
+    /// * `query_body_json` - JSON request body
+    /// * `query_body_raw` - Raw request body
+    /// * `node_index` - Index of the node to try
+    ///
+    /// # Returns
+    /// * `Result<RestResponse, RestError>` - API response or error
     async fn postchain_rest_api_with_poll(
         &self,
         method: RestRequestMethod,

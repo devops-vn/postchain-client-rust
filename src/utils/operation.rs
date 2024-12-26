@@ -1,25 +1,76 @@
+//! Operation parameter handling and data type conversion utilities.
+//! 
+//! This module provides functionality for handling operation parameters,
+//! data type conversions, and serialization/deserialization of various
+//! data types used in blockchain operations.
+//! 
+//! # Features
+//! - Generic parameter type system supporting various data types
+//! - Conversion between Rust structs and operation parameters
+//! - Serialization/deserialization support for complex data types
+//! - Support for large integers and binary data
+//! 
+//! # Example
+//! ```
+//! use std::collections::BTreeMap;
+//! use crate::utils::operation::{Operation, Params};
+//! 
+//! // Create operation parameters
+//! let params = vec![
+//!     ("key", Params::Text("value".to_string())),
+//!     ("number", Params::Integer(42))
+//! ];
+//! 
+//! // Create an operation
+//! let operation = Operation::from_dict("my_operation", params);
+//! ```
+
 extern crate num_bigint;
 
 use std::{collections::BTreeMap, fmt::Debug};
 use num_bigint::BigInt;
 use base64::{Engine as _, engine::general_purpose};
 
+/// Represents different types of operation parameters.
+/// 
+/// This enum provides a type-safe way to handle various data types
+/// used in blockchain operations, including primitive types, collections,
+/// and special types like BigInteger.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Params {
+    /// Represents a null value
     Null,
+    /// Represents a boolean value (true/false)
     Boolean(bool),
+    /// Represents a 64-bit signed integer
     Integer(i64),
+    /// Represents an arbitrary-precision integer using BigInt
     BigInteger(BigInt),
+    /// Represents a 64-bit floating point number
     Decimal(f64),
+    /// Represents a UTF-8 encoded string
     Text(String),
+    /// Represents a raw byte array
     ByteArray(Vec<u8>),
+    /// Represents an ordered collection of Params
     Array(Vec<Params>),
+    /// Represents a key-value mapping where keys are strings
     Dict(BTreeMap<String, Params>)
 }
 
 pub type QueryParams = Params;
 pub type OperationParams = Params;
 
+/// Deserializes a string into a BigInt.
+/// 
+/// This function is used with serde to deserialize string-encoded
+/// big integers into BigInt type.
+/// 
+/// # Arguments
+/// * `deserializer` - The deserializer to use
+/// 
+/// # Returns
+/// Result containing either the deserialized BigInt or an error
 #[allow(dead_code)]
 fn deserialize_bigint<'de, D>(deserializer: D) -> Result<BigInt, D::Error>
 where
@@ -31,6 +82,16 @@ where
         .ok_or(serde::de::Error::custom("Failed to parse BigInt"))
 }
 
+/// Deserializes a base64 string into a byte array.
+/// 
+/// This function is used with serde to deserialize base64-encoded
+/// strings into byte arrays.
+/// 
+/// # Arguments
+/// * `deserializer` - The deserializer to use
+/// 
+/// # Returns
+/// Result containing either the deserialized byte array or an error
 #[allow(dead_code)]
 fn deserialize_byte_array<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
 where
@@ -41,6 +102,17 @@ where
 }
 
 
+/// Serializes a BigInt into a string.
+/// 
+/// This function is used with serde to serialize BigInt values
+/// into string format.
+/// 
+/// # Arguments
+/// * `bigint` - The BigInt to serialize
+/// * `serializer` - The serializer to use
+/// 
+/// # Returns
+/// Result containing either the serialized string or an error
 #[allow(dead_code)]
 fn serialize_bigint<S>(bigint: &BigInt, serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -50,8 +122,15 @@ where
     serializer.serialize_str(&bigint_str)
 }
 
+/// Represents a blockchain operation with parameters.
+/// 
+/// An operation can contain either a dictionary of named parameters
+/// or a list of unnamed parameters, along with an operation name.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Operation<'a> {
+    /// Dictionary of named parameters
+    /// List of unnamed parameters
+    /// Name of the operation
     pub dict: Option<Vec<(&'a str, Params)>>,
     pub list: Option<Vec<Params>>,
     pub operation_name: Option<&'a str>,
@@ -67,6 +146,13 @@ impl<'a> Default for Operation<'a> {
     }
 }
 
+/// Checks if a vector of JSON values represents a byte array.
+/// 
+/// # Arguments
+/// * `value` - Vector of JSON values to check
+/// 
+/// # Returns
+/// true if all values are valid u8 numbers
 fn is_vec_u8(value: &Vec<serde_json::Value>) -> bool {
     value.iter().all(|v| {
             if let serde_json::Value::Number(n) = v {
@@ -78,6 +164,14 @@ fn is_vec_u8(value: &Vec<serde_json::Value>) -> bool {
 }
 
 impl<'a> Operation<'a> {
+    /// Creates a new Operation from a dictionary of parameters.
+    /// 
+    /// # Arguments
+    /// * `operation_name` - Name of the operation
+    /// * `params` - Vector of key-value parameter pairs
+    /// 
+    /// # Returns
+    /// A new Operation instance with dictionary parameters
     pub fn from_dict(operation_name: &'a str, params: Vec<(&'a str, Params)>) -> Self {
         Self {
             dict: Some(params),
@@ -86,6 +180,14 @@ impl<'a> Operation<'a> {
         }
     }
 
+    /// Creates a new Operation from a list of parameters.
+    /// 
+    /// # Arguments
+    /// * `operation_name` - Name of the operation
+    /// * `params` - Vector of parameters
+    /// 
+    /// # Returns
+    /// A new Operation instance with list parameters
     pub fn from_list(operation_name: &'a str, params: Vec<Params>) -> Self {
         Self {
             list: Some(params),
@@ -96,10 +198,27 @@ impl<'a> Operation<'a> {
 }
 
 impl Params {
+    /// Converts a boxed f64 value to its string representation.
+    /// 
+    /// # Arguments
+    /// * `val` - Boxed f64 value to convert
+    /// 
+    /// # Returns
+    /// String representation of the decimal value
     pub fn decimal_to_string(val: Box<f64>) -> String {
         val.to_string()
     }
 
+    /// Converts a dictionary parameter to an array of its values.
+    /// 
+    /// # Arguments
+    /// * `self` - Dictionary parameter to convert
+    /// 
+    /// # Returns
+    /// Vector containing the values from the dictionary
+    /// 
+    /// # Panics
+    /// Panics if self is not a Params::Dict
     pub fn dict_to_array(self) -> Vec<Params> {
         match self {
             Params::Dict(dict) => {
@@ -114,6 +233,15 @@ impl Params {
         }
     }
 
+    /// Checks if the parameter value is empty.
+    /// 
+    /// Works with Array, Dict, ByteArray, and Text parameter types.
+    /// 
+    /// # Returns
+    /// true if the parameter value is empty
+    /// 
+    /// # Panics
+    /// Panics if called on parameter types that don't support emptiness check
     pub fn is_empty(self) -> bool {
         match self {
             Params::Array(array) => array.is_empty(),
@@ -124,6 +252,15 @@ impl Params {
         }
     }
 
+    /// Returns the length of the parameter value.
+    /// 
+    /// Works with Array, Dict, ByteArray, and Text parameter types.
+    /// 
+    /// # Returns
+    /// Length of the parameter value
+    /// 
+    /// # Panics
+    /// Panics if called on parameter types that don't support length
     pub fn len(self) -> usize {
         match self {
             Params::Array(array) => array.len(),
@@ -134,6 +271,25 @@ impl Params {
         }
     }
 
+    /// Converts a dictionary parameter to a Rust struct.
+    /// 
+    /// # Type Parameters
+    /// * `T` - The target struct type that implements Default + Debug + Deserialize
+    /// 
+    /// # Returns
+    /// Result containing either the converted struct or an error message
+    /// 
+    /// # Example
+    /// ```
+    /// #[derive(Debug, Default, serde::Deserialize)]
+    /// struct MyStruct {
+    ///     field: String,
+    ///     value: i64,
+    /// }
+    /// 
+    /// let dict = Params::Dict(/* ... */);
+    /// let result: Result<MyStruct, String> = dict.to_struct();
+    /// ```
     pub fn to_struct<T>(&self) -> Result<T, String>
     where
         T: Default + std::fmt::Debug + for<'de> serde::Deserialize<'de>,
@@ -149,25 +305,32 @@ impl Params {
         }
     }
 
+    /// Converts the parameter to a serde_json::Value.
+    /// 
+    /// This method handles all parameter types, including complex types
+    /// like BigInteger and ByteArray.
+    /// 
+    /// # Returns
+    /// JSON representation of the parameter
     pub fn to_json_value(&self) -> serde_json::Value {
-        match self {
+        match *self {
             Params::Null => serde_json::Value::Null,
-            Params::Boolean(b) => serde_json::Value::Bool(*b),
-            Params::Integer(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
-            Params::BigInteger(big_int) => {
+            Params::Boolean(b) => serde_json::Value::Bool(b),
+            Params::Integer(i) => serde_json::Value::Number(serde_json::Number::from(i)),
+            Params::BigInteger(ref big_int) => {
                 serde_json::Value::String(big_int.to_string())
             },
-            Params::Decimal(d) => serde_json::Value::Number(serde_json::Number::from_f64(*d).unwrap()),
-            Params::Text(text) => serde_json::Value::String(text.to_string()),
-            Params::ByteArray(bytearray) => {
+            Params::Decimal(d) => serde_json::Value::Number(serde_json::Number::from_f64(d).unwrap()),
+            Params::Text(ref text) => serde_json::Value::String(text.to_string()),
+            Params::ByteArray(ref bytearray) => {
                 let base64_encoded = general_purpose::STANDARD.encode(bytearray);
                 serde_json::Value::String(base64_encoded)
             },
-            Params::Array(array) => {
+            Params::Array(ref array) => {
                 let json_array: Vec<serde_json::Value> = array.iter().map(|param| param.to_json_value()).collect();
                 serde_json::Value::Array(json_array)
             },
-            Params::Dict(dict) => {
+            Params::Dict(ref dict) => {
                 let json_object: serde_json::Map<String, serde_json::Value> = dict.iter()
                     .map(|(key, value)| (key.to_string(), value.to_json_value()))
                     .collect();
@@ -176,6 +339,28 @@ impl Params {
         }
     }
 
+    /// Creates a parameter from a Rust struct.
+    /// 
+    /// # Type Parameters
+    /// * `T` - The source struct type that implements Debug + Serialize
+    /// 
+    /// # Arguments
+    /// * `struct_instance` - Reference to the struct to convert
+    /// 
+    /// # Returns
+    /// Dictionary parameter containing the struct's fields
+    /// 
+    /// # Example
+    /// ```
+    /// #[derive(Debug, serde::Serialize)]
+    /// struct MyStruct {
+    ///     field: String,
+    ///     value: i64,
+    /// }
+    /// 
+    /// let my_struct = MyStruct { field: "test".into(), value: 42 };
+    /// let params = Params::from_struct(&my_struct);
+    /// ```
     pub fn from_struct<T>(struct_instance: &T) -> Params
     where
         T: std::fmt::Debug + serde::Serialize,
@@ -186,6 +371,13 @@ impl Params {
         Params::Dict(Self::json_value_to_params_dict(json_value))
     }
 
+    /// Converts a JSON value to a parameter dictionary.
+    /// 
+    /// # Arguments
+    /// * `value` - JSON value to convert
+    /// 
+    /// # Returns
+    /// BTreeMap containing the converted parameters
     fn json_value_to_params_dict(value: serde_json::Value) -> BTreeMap<String, Params> {
         let mut dict: BTreeMap<String, Params> = BTreeMap::new();
 
@@ -198,6 +390,19 @@ impl Params {
         dict
     }
 
+    /// Creates a list of parameters from a Rust struct.
+    /// 
+    /// Similar to from_struct, but returns a vector of values
+    /// instead of a dictionary.
+    /// 
+    /// # Type Parameters
+    /// * `T` - The source struct type that implements Debug + Serialize
+    /// 
+    /// # Arguments
+    /// * `struct_instance` - Reference to the struct to convert
+    /// 
+    /// # Returns
+    /// Vector of parameters containing the struct's field values
     pub fn from_struct_to_list<T>(struct_instance: &T) -> Vec<Params>
     where
         T: std::fmt::Debug + serde::Serialize,
@@ -216,6 +421,16 @@ impl Params {
         vec
     }
 
+    /// Converts a JSON value to a parameter.
+    /// 
+    /// This function handles conversion of various JSON types to
+    /// their corresponding parameter types.
+    /// 
+    /// # Arguments
+    /// * `value` - JSON value to convert
+    /// 
+    /// # Returns
+    /// Converted parameter
     fn value_to_params(value: serde_json::Value) -> Params {
         match value {
             serde_json::Value::Null => Params::Null,
@@ -251,6 +466,13 @@ impl Params {
         }
     }
 
+    /// Prints debug information about the parameter.
+    /// 
+    /// This method is only available in debug builds and provides
+    /// detailed information about the parameter's content.
+    /// 
+    /// # Arguments
+    /// * `self` - The parameter to debug print
     #[cfg(debug_assertions)]
     pub fn debug_print(&self) {
         match self {
@@ -275,6 +497,13 @@ impl Params {
     }
 }
 
+/// Implements conversion from Params to `Vec<Params>`.
+/// 
+/// This implementation allows converting an Array parameter
+/// into a vector of parameters.
+/// 
+/// # Panics
+/// Panics if the parameter is not an Array type
 impl<'a> Into<Vec<Params>> for Params {
     fn into(self) -> Vec<Params> {
         match self {
@@ -284,6 +513,13 @@ impl<'a> Into<Vec<Params>> for Params {
     }
 }
 
+/// Implements conversion from Params to BTreeMap<String, Params>.
+/// 
+/// This implementation allows converting a Dict parameter
+/// into a BTreeMap of string keys and parameter values.
+/// 
+/// # Panics
+/// Panics if the parameter is not a Dict type
 impl<'a> Into<BTreeMap<String, Params>> for Params {
     fn into(self) -> BTreeMap<String, Params> {
         match self {

@@ -1,0 +1,43 @@
+@test module;
+
+import main.{ book, create_book, get_all_books, book_review, create_book_review };
+
+function test_add_book() {
+    rell.test.tx()
+        .op(create_book("123", "Book1", "Author1"))
+        .op(create_book("124", "Book2", "Author2"))
+        .run();
+
+    val all_books = book @* { };
+
+    assert_equals(all_books.size(), 2);
+    assert_equals(all_books[0].title, "Book1");
+    assert_equals(all_books[0].author, "Author1");
+}
+
+function test_get_books() {
+    rell.test.tx()
+        .op(create_book("123", "Book1", "Author1"))
+        .op(create_book("124", "Book2", "Author2"))
+        .run();
+
+    val books = get_all_books();
+    assert_equals(books.size(), 2);
+}
+
+function test_add_book_review() {
+    rell.test.tx()
+        .op(create_book("123", "Book1", "Author1"))
+        .op(create_book_review("123", "Reviewer1", "ReviewText1", 5))
+        .op(create_book_review("123", "Reviewer2", "ReviewText2", 3))
+        .run();
+
+    val reviews = book_review @* { };
+    val book = book @ { .isbn == "123" };
+
+    assert_equals(reviews.size(), 2);
+    assert_equals(book, reviews[0].book);
+    assert_equals(reviews[0].reviewer_name, "Reviewer1");
+    assert_equals(reviews[0].review, "ReviewText1");
+    assert_equals(reviews[0].rating, 5);
+}

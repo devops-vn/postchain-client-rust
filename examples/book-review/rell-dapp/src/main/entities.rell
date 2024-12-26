@@ -1,0 +1,23 @@
+struct module_args {
+  admin_pubkey: byte_array;
+}
+
+entity book {
+  key isbn: text;
+  title: text;
+  author: text;
+}
+
+entity book_review {
+  index book: book;
+  reviewer_name: text;
+  review: text;
+  rating: integer;
+}
+
+struct book_review_dto {
+  book: struct<book>;
+  reviewer_name: text;
+  review: text;
+  rating: integer;
+}
