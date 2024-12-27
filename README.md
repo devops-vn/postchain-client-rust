@@ -1,6 +1,6 @@
 # Postchain Client Rust
 
-A Rust client library for interacting with the Chromia blockchain deployed to a Postchain single node (manual mode) or multi-nodes managed by Directory Chain (managed mode).
+A Rust client library for interacting with the [Chromia](https://chromia.com/) blockchain deployed to a Postchain single node (manual mode) or multi-nodes managed by Directory Chain (managed mode).
 
 This library provides functionality for executing queries, creating and signing transactions, and managing blockchain operations.
 
@@ -222,9 +222,23 @@ match result {
 
 ### 5. Use `serde` for `serialize` or `deserialize` a struct to `Params::Dict` or vice versa
 
-Please look at all tests in `operation.rs` source here: https://github.com/cuonglb/postchain-client-rust/blob/dev/src/utils/operation.rs 
+Please look at all tests in `operation.rs` source here: https://github.com/cuonglb/postchain-client-rust/blob/dev/src/utils/operation.rs
 
-### 6. Parameter Types
+### 6. Logging
+
+`postchain-client` uses `tracing` crate for logging. You can use `tracing-subscriber` crate to enable all logs.
+
+```rust
+use tracing_subscriber;
+
+#[tokio::main]
+async fn main() {
+    tracing_subscriber::fmt::init();
+    ...
+}
+```
+
+### 7. Parameter Types
 
 The library supports various parameter types through the `Params` enum and Rust struct :
 

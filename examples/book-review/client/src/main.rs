@@ -21,6 +21,8 @@ struct BookReview {
     rating: i64
 }
 
+use tracing_subscriber;
+
 const PRIV_KEY: &str = "C70D5A77CC10552019179B7390545C46647C9FCA1B6485850F2B913F87270300";
 
 async fn get_all_books(brid: &String, rc: &RestClient<'_>) {
@@ -120,6 +122,8 @@ async fn create_book_review(brid: &String, rc: &RestClient<'_>) {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt::init();
+    
     let rc = RestClient{
         node_url: vec!["http://localhost:7740"],
         ..Default::default()
