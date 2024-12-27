@@ -26,6 +26,10 @@ serde = { version = "1.0.216", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 ```
 
+## Documentation for `postchain_client` latest crate
+
+https://docs.rs/postchain-client/latest/postchain_client/
+
 ## Usage Guide
 
 ### 1. Setting Up the Client
