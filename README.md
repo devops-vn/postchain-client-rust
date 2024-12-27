@@ -43,7 +43,7 @@ let client = RestClient {
 
 ### 2. Executing Queries
 
-Queries allow you to fetch data from the blockchain:
+Queries allow our to fetch data from the blockchain:
 
 ```rust
 use postchain_client::utils::operation::Params;
@@ -96,6 +96,7 @@ async fn execute_query_with_struct(client: &RestClient<'_>) -> Result<(), Box<dy
     Ok(())
 }
 ```
+
 
 ### 3. Creating and Sending Transactions
 
@@ -162,40 +163,80 @@ async fn send_transaction(client: &RestClient<'_>, tx: &Transaction<'_>) -> Resu
 }
 ```
 
-#### 3.4 Error Handling
+### 4. Error and Response Handling
 
-The library uses Rust's Result type for error handling:
+The response from `client.query` and `client.send_transaction` is a `postchain_client::transport::client::RestResponse` enum if success
+or a `postchain_client::transport::client::RestError` enum if failed.
+
+We can handle it as follows:
 
 ```rust
-match client.send_transaction(&tx).await {
-    Ok(resp) => {
+let result = client.query(/* ... */).await;
+
+match result {
+    Ok(resp: RestResponse) => {
+        if let RestResponse::Bytes(val1) = resp {
+            let params = gtv::decode(&val1);
+            /// Do whatever we want with the decoded params
+        }
+    },
+    Error(error: RestError) => {
+        /// Do whatever we want with the error
+    }
+}
+```
+
+```rust
+let result = client.send_transaction(&tx).await;
+
+match result {
+    Ok(resp: RestResponse) => {
         println!("Transaction sent successfully: {:?}", resp);
     },
-    Err(err) => {
+    Err(error: ) => {
         eprintln!("Error sending transaction: {:?}", err);
     }
 }
 ```
 
-### 5. Parameter Types
+The response from `client.get_transaction_status` is a `postchain_client::utils::transaction::TransactionStatus` enum if success or a `postchain_client::transport::client::RestError` enum if failed.
+
+We can handle it as follows:
+
+```rust
+let result = client.get_transaction_status("<blockchain RID>", &tx_rid).await;
+
+match result {
+    Ok(resp: TransactionStatus) => {
+        /// Do anything else here
+    },
+    Err(error: RestError) => {
+        /// Do whatever we want with the error
+    }
+}
+```
+
+### 5. Use `serde` for `serialize` or `deserialize` a struct to `Params::Dict` or vice versa
+
+Please look at all tests in `operation.rs` source here: https://github.com/cuonglb/postchain-client-rust/blob/dev/src/utils/operation.rs 
+
+### 6. Parameter Types
 
 The library supports various parameter types through the `Params` enum and Rust struct :
 
-| GTV(*)  | Rust types | Params enums | ASN.1 DER |
-| --- | --- | --- | --- |
-| null | `Option<T> = None` | Params::Null | NULL |
-| integer | bool | Params::Boolean(bool) | INTEGER |
-| integer | i64 | Params::Integer(i64) | INTEGER |
-| bigInteger | i128 | Params::BigInteger(num_bigint::BigIn) | INTEGER |
-| decimal | f64 | Params::Decimal(f64) | UTF8String |
-| string | String | Params::Text(String) | UTF8String |
-| array | `Vec<T>` | Params::Array(`Vec<Params>`) | SEQUENCE |
-| dict | `BTreeMap<K, V>` | Params::Dict(`BTreeMap<String, Params>`) | SEQUENCE |
-| byteArray | `Vec<u8>` | Params:: ByteArray(`Vec<u8>`) | OCTET STRING |
+| GTV(*)  | Rust types | Params enums |
+| --- | --- | --- |
+| null | `Option<T> = None` | Params::Null |
+| integer | bool | Params::Boolean(bool) |
+| integer | i64 | Params::Integer(i64) |
+| bigInteger | i128 | Params::BigInteger(num_bigint::BigIn) |
+| decimal | f64 | Params::Decimal(f64) |
+| string | String | Params::Text(String) |
+| array | `Vec<T>` | Params::Array(`Vec<Params>`) |
+| dict | `BTreeMap<K, V>` | Params::Dict(`BTreeMap<String, Params>`) |
+| byteArray | `Vec<u8>` | Params:: ByteArray(`Vec<u8>`) |
 
 (*) GTV gets converted to ASN.1 DER when it's sent. See more : https://docs.chromia.com/intro/architecture/generic-transaction-protocol#generic-transfer-value-gtv
-
-We don't currently support this Rust type: `&str` string slice type for string parameters.
 
 ## Examples
 
@@ -208,9 +249,12 @@ This example demonstrates:
 - Querying the blockchain and handling responses
 - Creating and sending transactions
 - Signing transactions with a private key
-- Error handling and status checking
+- Transaction error handling and status checking
 
 ### How To Run
+
+Install Rust (https://www.rust-lang.org/tools/install)
+and Docker with compose.
 
 Start a Postchain single node with the `book-review` Rell dapp:
 ```shell
@@ -218,7 +262,7 @@ $ cd examples/book-review/rell-dapp/
 $ sudo docker compose up -d
 ```
 
-Start a simple Rust application to interact with thebook-review blockchain:
+Start a simple Rust application to interact with the book-review blockchain:
 ```shell
 $ cd examples/book-review/client
 $ cargo run
