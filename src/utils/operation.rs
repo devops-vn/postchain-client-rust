@@ -421,6 +421,34 @@ impl Params {
         vec
     }
 
+    /// Converts a struct into a Vec<(String, Params)>.
+    /// 
+    /// # Type Parameters
+    /// * `T` - The struct type that implements Debug + Serialize
+    /// 
+    /// # Arguments
+    /// * `struct_instance` - Reference to the struct to convert
+    /// 
+    /// # Returns
+    /// Vector of tuples containing string keys and Params values
+    pub fn from_struct_to_vec<T>(struct_instance: &T) -> Vec<(String, Params)>
+    where
+        T: std::fmt::Debug + serde::Serialize,
+    {
+        let json_value = serde_json::to_value(struct_instance)
+            .expect("Failed to convert struct to JSON value");
+
+        let mut vec = Vec::new();
+
+        if let serde_json::Value::Object(map) = json_value {
+            for (key, val) in map {
+                vec.push((key, Self::value_to_params(val)));
+            }
+        }
+
+        vec
+    }
+
     /// Converts a JSON value to a parameter.
     /// 
     /// This function handles conversion of various JSON types to
@@ -583,7 +611,8 @@ fn test_deserialize_param_dict_to_struct() {
         n: f64,
         m: String,
         dict: TestNestedStruct,
-        array: Vec<serde_json::Value>
+        array: Vec<serde_json::Value>,
+        t: Option<bool>
     }
 
     let bigint = num_bigint::BigInt::from(100000000000000000000000 as i128);
@@ -591,6 +620,7 @@ fn test_deserialize_param_dict_to_struct() {
     let bytearray_base64_encoded = general_purpose::STANDARD.encode(bytearray_value);
 
     let ts = TestStruct{
+        t: None,
         x: 1, y: 2, z: "foo".to_string(), dict: TestNestedStruct {
             bigint_as_string: bigint.to_string(),
             bigint_as_num_bigint: (100000000000000000000000 as i128).into()
@@ -605,6 +635,7 @@ fn test_deserialize_param_dict_to_struct() {
     nested_params.insert("bigint_as_num_bigint".to_string(), Params::BigInteger(bigint.clone()));
 
     let mut params: BTreeMap<String, Params> = BTreeMap::new();
+    params.insert("t".to_string(), Params::Null);
     params.insert("x".to_string(), Params::Integer(1));
     params.insert("y".to_string(), Params::Integer(2));
     params.insert("z".to_string(), Params::Text("foo".to_string()));
