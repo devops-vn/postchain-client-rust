@@ -96,16 +96,16 @@ enum NodeType {
 /// let empty_array = Params::Array(vec![]);
 /// match gtv_hash(empty_array) {
 ///     Ok(_) => println!("Hash computed successfully"),
-///     Err(HashError::EmptyArray) => println!("Cannot hash empty array"),
+///     Err(HashError::EmptyArray(msg)) => println!("{}", msg),
 ///     _ => println!("Other error occurred"),
 /// }
 /// ```
 #[derive(Clone, Debug)]
 pub enum HashError {
     /// Error when processing an invalid or empty array
-    EmptyArray,
+    EmptyArray(String),
     /// Error when processing an invalid or empty dictionary
-    EmptyDict,
+    EmptyDict(String),
 }
 
 /// Represents a node in the binary Merkle tree.
@@ -201,7 +201,7 @@ impl<'a> BinaryTreeFactory {
     /// When processing an odd number of nodes, the last node is promoted to the next layer without a pair
     fn process_layer(leaves: Vec<Box<BinaryTreeNode>>) -> Result<Box<BinaryTreeNode>, HashError> {
         if leaves.is_empty() {
-            return Err(HashError::EmptyArray);
+            return Err(HashError::EmptyArray("Cannot process empty layer of nodes".to_string()));
         }
 
         if leaves.len() == 1 {
@@ -281,7 +281,7 @@ impl<'a> BinaryTreeFactory {
             return Ok(Box::new(node));
         };
         
-        Err(HashError::EmptyArray)
+        Err(HashError::EmptyArray("Invalid array parameter provided".to_string()))
     }
 
     /// Processes a dictionary parameter into a Merkle tree node.
@@ -335,7 +335,7 @@ impl<'a> BinaryTreeFactory {
             return Ok(Box::new(node));
         }
         
-        Err(HashError::EmptyDict)
+        Err(HashError::EmptyDict("Invalid dictionary parameter provided".to_string()))
     }
 
     /// Creates a leaf node from a parameter value.
