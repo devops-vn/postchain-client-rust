@@ -57,7 +57,13 @@ async fn assert_roundtrips_transaction<'a>(
     match send_transaction {
         Ok(_) => {
             println!("ok");
-            let tx_status = rc.get_transaction_status(brid, &tx.tx_rid_hex()).await;
+            let rid_hex = tx.tx_rid_hex();
+            
+            if let Err(error) = rid_hex {
+                panic!("{:?}", error);
+            }
+
+            let tx_status = rc.get_transaction_status(brid, &rid_hex.unwrap()).await;
             println!("{:?}", tx_status);
         }
         Err(error) => {

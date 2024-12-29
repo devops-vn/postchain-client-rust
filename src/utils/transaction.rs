@@ -29,7 +29,7 @@
 
 use crate::encoding::gtv;
 use crate::utils::hasher::gtv_hash;
-use super::operation::Operation;
+use super::{hasher, operation::Operation};
 use secp256k1::{PublicKey, Secp256k1, SecretKey, Message, ecdsa::Signature};
 use hex::FromHex;
 
@@ -116,7 +116,7 @@ impl<'a> Transaction<'a> {
     /// 
     /// # Returns
     /// Vector of bytes containing the transaction RID
-    pub fn tx_rid(&self) -> Vec<u8> {
+    pub fn tx_rid(&self) -> Result<Vec<u8>, hasher::HashError> {
         let to_draw_gtx = gtv::to_draw_gtx(self);
         gtv_hash(to_draw_gtx)
     }
@@ -128,8 +128,8 @@ impl<'a> Transaction<'a> {
     /// 
     /// # Returns
     /// Hex-encoded string of the transaction RID
-    pub fn tx_rid_hex(&self) -> String {
-        hex::encode(self.tx_rid())
+    pub fn tx_rid_hex(&self) -> Result<String, hasher::HashError> {
+        Ok(hex::encode(self.tx_rid()?))
     }
 
     /// Signs the transaction using a raw private key string.
@@ -182,7 +182,12 @@ impl<'a> Transaction<'a> {
 
         let digest = self.tx_rid();
 
-        let digest_array: [u8; 32] = digest.clone().try_into().expect("Invalid digest to sign");
+        if let Err(error) = digest {
+            tracing::error!("Can't signs the transaction because of error: {:?}", error);
+            return Ok(());
+        }
+
+        let digest_array: [u8; 32] = digest.clone().unwrap().try_into().expect("Invalid digest to sign");
         let signature = sign(&digest_array, &private_key_bytes)?;
 
         if self.signatures.is_none() {
