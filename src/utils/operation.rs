@@ -29,6 +29,8 @@ extern crate num_bigint;
 
 use std::{collections::BTreeMap, fmt::Debug};
 use num_bigint::BigInt;
+use bigdecimal::BigDecimal;
+use std::str::FromStr;
 use base64::{Engine as _, engine::general_purpose};
 
 /// Represents different types of operation parameters.
@@ -46,8 +48,8 @@ pub enum Params {
     Integer(i64),
     /// Represents an arbitrary-precision integer using BigInt
     BigInteger(BigInt),
-    /// Represents a 64-bit floating point number
-    Decimal(f64),
+    /// Represents an arbitrary-precision decimal using BigDecimal
+    Decimal(BigDecimal),
     /// Represents a UTF-8 encoded string
     Text(String),
     /// Represents a raw byte array
@@ -120,6 +122,70 @@ where
 {
     let bigint_str = bigint.to_string();
     serializer.serialize_str(&bigint_str)
+}
+
+/// Custom serialization for `BigDecimal`.
+///
+/// This function converts a `BigDecimal` value into a string representation,
+/// which is then serialized using the provided serializer.
+///
+/// # Arguments
+/// * `bigdecimal` - A reference to the `BigDecimal` value to serialize.
+/// * `serializer` - The serializer to use for converting the `BigDecimal` into a string.
+///
+/// # Returns
+/// Returns the serialized string representation of the `BigDecimal` if successful,
+/// or an error if serialization fails.
+///
+/// # Example
+/// ```
+/// #[derive(Debug, serde::Serialize)]
+/// struct MyStruct {
+///     #[serde(serialize_with = "serialize_bigdecimal")]
+///     value: BigDecimal,
+/// }
+///
+/// let my_struct = MyStruct { value: BigDecimal::from_str("3.14").unwrap() };
+/// let json = serde_json::to_string(&my_struct).unwrap();
+///
+#[allow(dead_code)]
+fn serialize_bigdecimal<S>(bigdecimal: &BigDecimal, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&bigdecimal.to_string())
+}
+
+/// Custom deserialization for `BigDecimal`.
+///
+/// This function takes a string representation of a `BigDecimal` and converts it
+/// back into a `BigDecimal` value.
+///
+/// # Arguments
+/// * `deserializer` - The deserializer to use for converting the string into a `BigDecimal`.
+///
+/// # Returns
+/// Returns the deserialized `BigDecimal` if successful, or an error if deserialization fails.
+///
+/// # Example
+/// ```
+/// #[derive(Debug, serde::Deserialize)]
+/// struct MyStruct {
+///     #[serde(deserialize_with = "deserialize_bigdecimal")]
+///     value: BigDecimal,
+/// }
+///
+/// let json = r#"{"value": "3.14"}"#;
+/// let my_struct: MyStruct = serde_json::from_str(json).unwrap();
+/// ```
+#[allow(dead_code)]
+fn deserialize_bigdecimal<'de, D>(deserializer: D) -> Result<BigDecimal, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s: String = serde::Deserialize::deserialize(deserializer)?;
+    BigDecimal::from_str(&s)
+        .map_err(serde::de::Error::custom)
 }
 
 /// Represents a blockchain operation with parameters.
@@ -317,10 +383,8 @@ impl Params {
             Params::Null => serde_json::Value::Null,
             Params::Boolean(b) => serde_json::Value::Bool(b),
             Params::Integer(i) => serde_json::Value::Number(serde_json::Number::from(i)),
-            Params::BigInteger(ref big_int) => {
-                serde_json::Value::String(big_int.to_string())
-            },
-            Params::Decimal(d) => serde_json::Value::Number(serde_json::Number::from_f64(d).unwrap()),
+            Params::BigInteger(ref big_int) => serde_json::Value::String(big_int.to_string()),
+            Params::Decimal(ref big_decimal) => serde_json::Value::String(big_decimal.to_string()),
             Params::Text(ref text) => serde_json::Value::String(text.to_string()),
             Params::ByteArray(ref bytearray) => {
                 let base64_encoded = general_purpose::STANDARD.encode(bytearray);
@@ -466,8 +530,6 @@ impl Params {
             serde_json::Value::Number(n) => {
                 if let Some(i) = n.as_i64() {
                     Params::Integer(i)
-                } else if let Some(f) = n.as_f64() {
-                    Params::Decimal(f)
                 } else {
                     Params::Null
                 }
@@ -475,7 +537,12 @@ impl Params {
             serde_json::Value::String(s) => {
                 match BigInt::parse_bytes(s.as_bytes(), 10) {
                     Some(big_int) => Params::BigInteger(big_int),
-                    None => Params::Text(s),
+                    None => {
+                        match BigDecimal::parse_bytes(s.as_bytes(), 10) {
+                            Some(big_decimal) => Params::Decimal(big_decimal),
+                            None => Params::Text(s),
+                        }
+                    },
                 }
             },
             serde_json::Value::Array(arr) => {
@@ -583,6 +650,7 @@ fn test_serialize_struct_to_param_dict() {
     };
 
     let r: Params = Params::from_struct(&ts1);
+
     let m: Result<TestStruct1, String> = r.to_struct();
 
     assert_eq!(ts1, m.unwrap());
@@ -591,6 +659,8 @@ fn test_serialize_struct_to_param_dict() {
 
 #[test]
 fn test_deserialize_param_dict_to_struct() {
+    use std::str::FromStr;
+
     /// We have two options here for deserialization big integer:
     /// 1. Use `String` struct
     /// 2. Use `num_bigint::BigInt` struct with serder custom function
@@ -608,7 +678,7 @@ fn test_deserialize_param_dict_to_struct() {
         y: i64,
         z: String,
         l: bool,
-        n: f64,
+        n: BigDecimal,
         m: String,
         dict: TestNestedStruct,
         array: Vec<serde_json::Value>,
@@ -624,7 +694,7 @@ fn test_deserialize_param_dict_to_struct() {
         x: 1, y: 2, z: "foo".to_string(), dict: TestNestedStruct {
             bigint_as_string: bigint.to_string(),
             bigint_as_num_bigint: (100000000000000000000000 as i128).into()
-        }, l: true, n: 3.14, m: bytearray_base64_encoded, array: vec![
+        }, l: true, n: BigDecimal::from_str("3.14").unwrap(), m: bytearray_base64_encoded, array: vec![
             serde_json::Value::Number(serde_json::Number::from(1 as i64)),
             serde_json::Value::String("foo".to_string()),
             ]
@@ -641,7 +711,7 @@ fn test_deserialize_param_dict_to_struct() {
     params.insert("z".to_string(), Params::Text("foo".to_string()));
     params.insert("dict".to_string(), Params::Dict(nested_params));
     params.insert("l".to_string(), Params::Boolean(true));
-    params.insert("n".to_string(), Params::Decimal(3.14));
+    params.insert("n".to_string(), Params::Decimal(BigDecimal::from_str("3.14").unwrap()));
     params.insert("m".to_string(), Params::ByteArray(bytearray_value.to_vec()));
     params.insert("array".to_string(), Params::Array(vec![Params::Integer(1), Params::Text("foo".to_string())]));
 
@@ -680,4 +750,33 @@ fn test_serialize_deserialize_bigint() {
     } else {
         panic!("Error deserializing params: {}", result.unwrap_err());
     }
+}
+
+#[test]
+fn test_serialize_deserialize_bigdecimal() {
+    use std::str::FromStr;
+
+    let large_int_str = "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+    let large_int = BigInt::parse_bytes(large_int_str.as_bytes(), 10).unwrap();
+
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+    struct TestStruct {
+        no_number: String,
+        #[serde(serialize_with = "serialize_bigint", deserialize_with = "deserialize_bigint")]
+        bigint: BigInt,
+        #[serde(serialize_with = "serialize_bigdecimal", deserialize_with = "deserialize_bigdecimal")]
+        bigdecimal: BigDecimal
+    }
+
+    let ts = TestStruct {
+        no_number: "Hello!".to_string(),
+        bigdecimal: BigDecimal::from_str(".02").unwrap(),
+        bigint: large_int
+    };
+
+    let r: Params = Params::from_struct(&ts);
+
+    let m: Result<TestStruct, String> = r.to_struct();
+
+    assert_eq!(ts, m.unwrap());
 }

@@ -323,7 +323,7 @@ async fn queries_integration_test_success_cases() {
         &rc,
         &brid,
         "test_decimal",
-        Some(&mut vec![("arg1", QueryParams::Decimal(99.999))]),
+        Some(&mut vec![("arg1", QueryParams::Decimal(bigdecimal::BigDecimal::from_str("99.999").unwrap()))]),
         "a2080c0639392e393939",
     )
     .await;
@@ -610,7 +610,7 @@ async fn queries_integration_test_success_cases() {
     args.insert("hero_level_bonus_lookup".to_string(), QueryParams::Array(vec![]));
     args.insert("blessing_rating_factor".to_string(), QueryParams::Dict(blessing_rating_factor));
     args.insert("item_rating_factor".to_string(), QueryParams::Dict(item_rating_factor));
-    args.insert("blessing_gender_male_chance".to_string(), QueryParams::Decimal(1.1));
+    args.insert("blessing_gender_male_chance".to_string(), QueryParams::Decimal(bigdecimal::BigDecimal::from_str("1.1").unwrap()));
     args.insert("onboarding_map_blessing_to_fragments".to_string(), QueryParams::Array(vec![]));
     args.insert("season_claim_offset".to_string(), QueryParams::Integer(1));
 
