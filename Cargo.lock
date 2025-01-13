@@ -933,6 +933,7 @@ dependencies = [
  "ctor",
  "hex",
  "num-bigint",
+ "postchain-client-derive",
  "rand",
  "reqwest",
  "secp256k1",
@@ -943,6 +944,14 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+]
+
+[[package]]
+name = "postchain-client-derive"
+version = "0.0.1"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

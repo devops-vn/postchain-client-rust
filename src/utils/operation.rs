@@ -33,6 +33,13 @@ use bigdecimal::BigDecimal;
 use std::str::FromStr;
 use base64::{Engine as _, engine::general_purpose};
 
+#[allow(unused_imports)]
+use postchain_client_derive::StructMetadata;
+
+pub trait StructMetadata {
+    fn field_names_and_types() -> std::collections::BTreeMap<String, String>;
+}
+
 /// Represents different types of operation parameters.
 /// 
 /// This enum provides a type-safe way to handle various data types
@@ -427,12 +434,14 @@ impl Params {
     /// ```
     pub fn from_struct<T>(struct_instance: &T) -> Params
     where
-        T: std::fmt::Debug + serde::Serialize,
+        T: std::fmt::Debug + serde::Serialize + StructMetadata,
     {
         let json_value = serde_json::to_value(struct_instance)
             .expect("Failed to convert struct to JSON value");
 
-        Params::Dict(Self::json_value_to_params_dict(json_value))
+        let fnat = T::field_names_and_types();
+
+        Params::Dict(Self::json_value_to_params_dict(json_value, fnat))
     }
 
     /// Converts a JSON value to a parameter dictionary.
@@ -442,12 +451,13 @@ impl Params {
     /// 
     /// # Returns
     /// BTreeMap containing the converted parameters
-    fn json_value_to_params_dict(value: serde_json::Value) -> BTreeMap<String, Params> {
+    fn json_value_to_params_dict(value: serde_json::Value, fnat: BTreeMap<String, String>) -> BTreeMap<String, Params> {
         let mut dict: BTreeMap<String, Params> = BTreeMap::new();
 
         if let serde_json::Value::Object(map) = value {
             for (key, val) in map {
-                dict.insert(key, Self::value_to_params(val));
+                let f_type = fnat.get(&key).cloned(); 
+                dict.insert(key, Self::value_to_params(val, f_type));
             }
         }
 
@@ -469,16 +479,19 @@ impl Params {
     /// Vector of parameters containing the struct's field values
     pub fn from_struct_to_list<T>(struct_instance: &T) -> Vec<Params>
     where
-        T: std::fmt::Debug + serde::Serialize,
+        T: std::fmt::Debug + serde::Serialize + StructMetadata,
     {
         let json_value = serde_json::to_value(struct_instance)
             .expect("Failed to convert struct to JSON value");
 
         let mut vec = Vec::new();
 
+        let fnat = T::field_names_and_types();
+
         if let serde_json::Value::Object(map) = json_value {
-            for (_, val) in map {
-                vec.push(Self::value_to_params(val));
+            for (key, val) in map {
+                let f_type = fnat.get(&key).cloned(); 
+                vec.push(Self::value_to_params(val, f_type));
             }
         }
 
@@ -506,7 +519,7 @@ impl Params {
 
         if let serde_json::Value::Object(map) = json_value {
             for (key, val) in map {
-                vec.push((key, Self::value_to_params(val)));
+                vec.push((key, Self::value_to_params(val, None)));
             }
         }
 
@@ -523,7 +536,7 @@ impl Params {
     /// 
     /// # Returns
     /// Converted parameter
-    fn value_to_params(value: serde_json::Value) -> Params {
+    fn value_to_params(value: serde_json::Value, field_type: Option<String>) -> Params {
         match value {
             serde_json::Value::Null => Params::Null,
             serde_json::Value::Bool(b) => Params::Boolean(b),
@@ -535,14 +548,20 @@ impl Params {
                 }
             },
             serde_json::Value::String(s) => {
-                match BigInt::parse_bytes(s.as_bytes(), 10) {
-                    Some(big_int) => Params::BigInteger(big_int),
-                    None => {
-                        match BigDecimal::parse_bytes(s.as_bytes(), 10) {
-                            Some(big_decimal) => Params::Decimal(big_decimal),
-                            None => Params::Text(s),
+                match field_type {
+                    Some(val) if val.contains("BigInt") => {
+                        match BigInt::parse_bytes(s.as_bytes(), 10) {
+                            Some(big_int) => Params::BigInteger(big_int),
+                            None => panic!("Required field is not a valid BigInteger"),
                         }
                     },
+                    Some(val) if val.contains("BigDecimal") => {
+                        match BigDecimal::parse_bytes(s.as_bytes(), 10) {
+                            Some(big_decimal) => Params::Decimal(big_decimal),
+                            None => panic!("Required field is not a valid BigDecimal"),
+                        }
+                    },
+                    _ => Params::Text(s)
                 }
             },
             serde_json::Value::Array(arr) => {
@@ -551,11 +570,13 @@ impl Params {
                     let barr: Vec<u8> = arr.iter().map(|v|{v.as_u64().unwrap() as u8}).collect();
                     return Params::ByteArray(barr)
                 }
-                let params_array: Vec<Params> = arr.into_iter().map(Self::value_to_params).collect();
+                let params_array: Vec<Params> = arr.into_iter().map(|x|{
+                    Self::value_to_params(x, None)
+                }).collect();
                 Params::Array(params_array)
             },
             serde_json::Value::Object(dict) => {
-                let params_dict: BTreeMap<String, Params> = dict.into_iter().map(|(k, v)| ( k, Self::value_to_params(v))).collect();
+                let params_dict: BTreeMap<String, Params> = dict.into_iter().map(|(k, v)| ( k, Self::value_to_params(v, None))).collect();
                 Params::Dict(params_dict)
             }
         }
@@ -631,7 +652,7 @@ fn test_serialize_struct_to_param_dict() {
         foo: String
     }
 
-    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, StructMetadata)]
     struct TestStruct1 {
         foo: String,
         bar: i64,
@@ -730,7 +751,7 @@ fn test_serialize_deserialize_bigint() {
     let large_int_str = "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let large_int = BigInt::parse_bytes(large_int_str.as_bytes(), 10).unwrap();
 
-    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, StructMetadata)]
     struct TestStruct {
         #[serde(serialize_with = "serialize_bigint", deserialize_with = "deserialize_bigint")]
         bigint1: num_bigint::BigInt,
@@ -759,7 +780,7 @@ fn test_serialize_deserialize_bigdecimal() {
     let large_int_str = "100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let large_int = BigInt::parse_bytes(large_int_str.as_bytes(), 10).unwrap();
 
-    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq)]
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, StructMetadata)]
     struct TestStruct {
         no_number: String,
         #[serde(serialize_with = "serialize_bigint", deserialize_with = "deserialize_bigint")]
@@ -779,4 +800,28 @@ fn test_serialize_deserialize_bigdecimal() {
     let m: Result<TestStruct, String> = r.to_struct();
 
     assert_eq!(ts, m.unwrap());
+}
+
+#[test]
+fn test_struct_metadata_derive() {
+    #[derive(Debug, Default, serde::Serialize, serde::Deserialize, PartialEq, StructMetadata)]
+    struct TestStruct {
+        text: String,
+        #[serde(serialize_with = "serialize_bigint", deserialize_with = "deserialize_bigint")]
+        bigint: BigInt,
+        #[serde(serialize_with = "serialize_bigdecimal", deserialize_with = "deserialize_bigdecimal")]
+        bigdecimal: BigDecimal
+    }
+
+    let ts = TestStruct {
+        text: "Hello!".to_string(),
+        bigdecimal: BigDecimal::parse_bytes("55.77e-5".as_bytes(), 10).unwrap(),
+        bigint: BigInt::parse_bytes("123".as_bytes(), 10).unwrap()
+    };
+
+    let r: Params = Params::from_struct(&ts);
+    let m = r.to_struct::<TestStruct>().unwrap();
+    
+    assert_eq!(m.bigdecimal, BigDecimal::parse_bytes("55.77e-5".as_bytes(), 10).unwrap());
+    assert_eq!(m.bigint, BigInt::parse_bytes("123".as_bytes(), 10).unwrap());
 }

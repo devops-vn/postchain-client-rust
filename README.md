@@ -242,13 +242,13 @@ async fn main() {
 
 The library supports various parameter types through the `Params` enum and Rust struct :
 
-| GTV(*)  | Rust types | Params enums | Note |
+| GTV(*)  | Rust types or 3rd crates | Postchain Client Params enums | Note |
 | --- | --- | --- | --- |
 | null | `Option<T> = None` | Params::Null | |
 | integer | bool | Params::Boolean(bool) | |
 | integer | i64 | Params::Integer(i64) | |
-| bigInteger | i128 | Params::BigInteger(num_bigint::BigInt) | (**) |
-| decimal | f64 | Params::Decimal(bigdecimal::BigDecimal) | (***) |
+| bigInteger | num_bigint::BigInt | Params::BigInteger(num_bigint::BigInt) | (**) |
+| decimal | bigdecimal::BigDecimal | Params::Decimal(bigdecimal::BigDecimal) | (***) |
 | string | String | Params::Text(String) | |
 | array | `Vec<T>` | Params::Array(`Vec<Params>`) | |
 | dict | `BTreeMap<K, V>` | Params::Dict(`BTreeMap<String, Params>`) | |
