@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-#postchain-client = "0.0.1"
 postchain-client = { path = "../../../" }
 tokio = { version = "1.43", features = ["rt"] }
 hex = "0.4.3"
