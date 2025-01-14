@@ -4,16 +4,19 @@ use postchain_client::{
     transport::client::{RestResponse, RestClient},
     encoding::gtv
 };
+
+use postchain_client::utils::operation::StructMetadata;
+
 use tokio;
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, postchain_client::StructMetadata)]
 struct Book {
     isbn: String,
     title: String,
     author: String,
 }
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, postchain_client::StructMetadata)]
 struct BookReview {
     index: String,
     reviewer_name: String,
@@ -79,7 +82,7 @@ async fn create_new_books(brid: &String, rc: &RestClient<'_>) {
     println!("{:?}", resp);
     println!("* Transaction sent!\n* Waiting for status...");
     
-    let tx_status = rc.get_transaction_status(brid, &tx.tx_rid_hex()).await;
+    let tx_status = rc.get_transaction_status(brid, &tx.tx_rid_hex().unwrap()).await;
     println!("* Status: {:?}", tx_status);
 }
 
@@ -115,7 +118,7 @@ async fn create_book_review(brid: &String, rc: &RestClient<'_>) {
      } else {
         let resp = rc.send_transaction(&tx).await;
         println!("{:?}", resp);
-        let tx_status = rc.get_transaction_status(brid, &tx.tx_rid_hex()).await;
+        let tx_status = rc.get_transaction_status(brid, &tx.tx_rid_hex().unwrap()).await;
         println!("{:?}", tx_status);
      }
 }

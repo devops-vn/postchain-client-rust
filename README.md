@@ -242,19 +242,50 @@ async fn main() {
 
 The library supports various parameter types through the `Params` enum and Rust struct :
 
-| GTV(*)  | Rust types | Params enums |
-| --- | --- | --- |
-| null | `Option<T> = None` | Params::Null |
-| integer | bool | Params::Boolean(bool) |
-| integer | i64 | Params::Integer(i64) |
-| bigInteger | i128 | Params::BigInteger(num_bigint::BigIn) |
-| decimal | f64 | Params::Decimal(f64) |
-| string | String | Params::Text(String) |
-| array | `Vec<T>` | Params::Array(`Vec<Params>`) |
-| dict | `BTreeMap<K, V>` | Params::Dict(`BTreeMap<String, Params>`) |
-| byteArray | `Vec<u8>` | Params:: ByteArray(`Vec<u8>`) |
+| GTV(*)  | Rust types or 3rd crates | Postchain Client Params enums | Note |
+| --- | --- | --- | --- |
+| null | `Option<T> = None` | Params::Null | |
+| integer | bool | Params::Boolean(bool) | |
+| integer | i64 | Params::Integer(i64) | |
+| bigInteger | num_bigint::BigInt | Params::BigInteger(num_bigint::BigInt) | (**) |
+| decimal | bigdecimal::BigDecimal | Params::Decimal(bigdecimal::BigDecimal) | (***) |
+| string | String | Params::Text(String) | |
+| array | `Vec<T>` | Params::Array(`Vec<Params>`) | |
+| dict | `BTreeMap<K, V>` | Params::Dict(`BTreeMap<String, Params>`) | |
+| byteArray | `Vec<u8>` | Params:: ByteArray(`Vec<u8>`) | |
+
 
 (*) GTV gets converted to ASN.1 DER when it's sent. See more : https://docs.chromia.com/intro/architecture/generic-transaction-protocol#generic-transfer-value-gtv
+
+(**) We can use serde custom derive macros in some of cases to:
+
+> Handle arbitrary-precision integers:
+- `operation::deserialize_bigint` for deserialization.
+- `operation::serialize_bigint` for serialization.
+```rust
+use postchain_client::utils::{operation::{deserialize_bigint, serialize_bigint}};
+...
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct TestStructBigInt {
+        #[serde(serialize_with = "serialize_bigint", deserialize_with = "deserialize_bigint")]
+        bigint: num_bigint::BigInt
+    }
+...
+```
+
+> Handle arbitrary-precision decimal:
+- `operation::deserialize_bigint` for deserialization.
+- `operation::serialize_bigint` for serialization.
+```rust
+use postchain_client::utils::{operation::{serialize_bigdecimal, deserialize_bigdecimal}};
+...
+    #[derive(serde::Serialize, serde::Deserialize)]
+    struct TestStructDecimal {
+        #[serde(serialize_with = "serialize_bigdecimal", deserialize_with = "deserialize_bigdecimal")]
+        bigdecimal: bigdecimal::BigDecimal
+    }
+...
+```
 
 ## Examples
 

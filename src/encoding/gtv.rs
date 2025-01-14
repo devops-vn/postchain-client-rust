@@ -582,7 +582,8 @@ fn gtv_encode_value_integer() {
 
 #[test]
 fn gtv_encode_value_decimal() {
-  assert_roundtrips_value(&Params::Decimal(999.999), &Params::Text("999.999".to_string()), "a2090c073939392e393939")
+  use std::str::FromStr;
+  assert_roundtrips_value(&Params::Decimal(bigdecimal::BigDecimal::from_str("999.999").unwrap()), &Params::Text("999.999".to_string()), "a2090c073939392e393939")
 }
 
 #[test]
@@ -669,13 +670,15 @@ fn gtv_test_sequence_with_negative_number() {
 
 #[test]
 fn gtv_test_sequence_with_decimal() {
-  assert_roundtrips(Some(&mut vec![("foo", Params::Decimal(99.99))]), 
+  use std::str::FromStr;
+  assert_roundtrips(Some(&mut vec![("foo", Params::Decimal(bigdecimal::BigDecimal::from_str("99.99").unwrap()))]), 
   "a4123010300e0c03666f6fa2070c0539392e3939");
 }
 
 #[test]
 fn gtv_test_sequence_with_negative_decimal() {
-  assert_roundtrips(Some(&mut vec![("foo", Params::Decimal(-99.99))]), 
+  use std::str::FromStr;
+  assert_roundtrips(Some(&mut vec![("foo", Params::Decimal(bigdecimal::BigDecimal::from_str("-99.99").unwrap()))]),
   "a4133011300f0c03666f6fa2080c062d39392e3939");
 }
 
@@ -820,7 +823,8 @@ fn gtv_test_simple_big_integer() {
 
 #[test]
 fn gtv_test_simple_decimal() {
-  assert_roundtrips_simple(Params::Decimal(99.999), "a2080c0639392e393939");
+  use std::str::FromStr;
+  assert_roundtrips_simple(Params::Decimal(bigdecimal::BigDecimal::from_str("99.999").unwrap()), "a2080c0639392e393939");
 }
 
 #[test]
