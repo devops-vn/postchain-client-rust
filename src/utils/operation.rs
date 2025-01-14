@@ -444,13 +444,19 @@ impl Params {
         Params::Dict(Self::json_value_to_params_dict(json_value, fnat))
     }
 
-    /// Converts a JSON value to a parameter dictionary.
-    /// 
-    /// # Arguments
-    /// * `value` - JSON value to convert
-    /// 
+    /// Converts a JSON value to a parameter dictionary, utilizing a provided function name to argument type (fnat) mapping.
+    ///
+    /// # Parameters
+    /// * `value`: The JSON value to be converted.
+    /// * `fnat`: A mapping of function names to argument types, used to determine the type of each parameter.
+    ///
     /// # Returns
-    /// BTreeMap containing the converted parameters
+    /// A `BTreeMap` containing the converted parameters, where each key is a parameter name and each value is a `Params` object.
+    ///
+    /// # Notes
+    /// * This function assumes that the input JSON value is an object, and will only process key-value pairs within that object.
+    /// * The `fnat` mapping is used to determine the type of each parameter, and should contain a mapping of function names to argument types.
+    /// * If a key in the input JSON value is not present in the `fnat` mapping, the function will use a default type for that parameter.
     fn json_value_to_params_dict(value: serde_json::Value, fnat: BTreeMap<String, String>) -> BTreeMap<String, Params> {
         let mut dict: BTreeMap<String, Params> = BTreeMap::new();
 
@@ -527,15 +533,23 @@ impl Params {
     }
 
     /// Converts a JSON value to a parameter.
-    /// 
-    /// This function handles conversion of various JSON types to
-    /// their corresponding parameter types.
-    /// 
-    /// # Arguments
-    /// * `value` - JSON value to convert
-    /// 
-    /// # Returns
-    /// Converted parameter
+    ///
+    /// This function handles the conversion of various JSON types to their corresponding parameter types.
+    ///
+    /// ### Arguments
+    ///
+    /// * `value`: The JSON value to convert.
+    /// * `field_type`: An optional string indicating the type of the field. This is used to determine the type of the converted parameter.
+    ///
+    /// ### Returns
+    ///
+    /// The converted parameter.
+    ///
+    /// ### Notes
+    ///
+    /// * If the `field_type` is `Some` and contains "BigInt", the function will attempt to parse the JSON string value as a BigInteger.
+    /// * If the `field_type` is `Some` and contains "BigDecimal", the function will attempt to parse the JSON string value as a BigDecimal.
+    /// * If the JSON value is an array and all elements are numbers, the function will attempt to convert it to a byte array.
     fn value_to_params(value: serde_json::Value, field_type: Option<String>) -> Params {
         match value {
             serde_json::Value::Null => Params::Null,
