@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-postchain-client = "0.0.1"
-tokio = { version = "1.42.0", features = ["rt"] }
+#postchain-client = "0.0.1"
+postchain-client = { path = "../../../" }
+tokio = { version = "1.43", features = ["rt"] }
 hex = "0.4.3"
-serde = { version = "1.0.216", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 tracing-subscriber = "0.3.19"
