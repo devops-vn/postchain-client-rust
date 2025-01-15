@@ -51,6 +51,7 @@ pub enum TransactionStatus {
 /// A transaction contains a list of operations to be executed, along with
 /// the necessary signatures to authorize these operations. It supports
 /// both single and multi-signature scenarios.
+#[derive(Debug)]
 pub struct Transaction<'a> {
     /// Unique identifier of the blockchain this transaction belongs to
     pub blockchain_rid: Vec<u8>,

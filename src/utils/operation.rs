@@ -394,8 +394,12 @@ impl Params {
             Params::Decimal(ref big_decimal) => serde_json::Value::String(big_decimal.to_string()),
             Params::Text(ref text) => serde_json::Value::String(text.to_string()),
             Params::ByteArray(ref bytearray) => {
-                let base64_encoded = general_purpose::STANDARD.encode(bytearray);
-                serde_json::Value::String(base64_encoded)
+                if bytearray.len() == 33 {
+                    serde_json::Value::String(hex::encode(bytearray))
+                } else {
+                    let base64_encoded = general_purpose::STANDARD.encode(bytearray);
+                    serde_json::Value::String(base64_encoded)
+                }
             },
             Params::Array(ref array) => {
                 let json_array: Vec<serde_json::Value> = array.iter().map(|param| param.to_json_value()).collect();
@@ -627,6 +631,84 @@ impl Params {
     }
 }
 
+/// Converts `Params` to `bool`.
+///
+/// # Panics
+/// Panics if the `Params` variant is not `Params::Boolean`.
+impl From<Params> for bool {
+    fn from(value: Params) -> Self {
+        match value {
+            Params::Boolean(val) => val,
+            _ => panic!("Cannot convert {:?} to bool", value)
+        }
+    }
+}
+
+/// Converts `Params` to `i64`.
+///
+/// # Panics
+/// Panics if the `Params` variant is not `Params::Integer`.
+impl From<Params> for i64 {
+    fn from(value: Params) -> Self {
+        match value {
+            Params::Integer(val) => val,
+            _ => panic!("Cannot convert {:?} to i64", value)
+        }
+    }
+}
+
+/// Converts `Params` to `BigInt`.
+///
+/// # Panics
+/// Panics if the `Params` variant is not `Params::BigInteger`.
+impl From<Params> for BigInt {
+    fn from(value: Params) -> Self {
+        match value {
+            Params::BigInteger(val) => val,
+            _ => panic!("Cannot convert {:?} to BigInt", value)
+        }
+    }
+}
+
+/// Converts `Params` to `BigDecimal`.
+///
+/// # Panics
+/// Panics if the `Params` variant is not `Params::Decimal`.
+impl From<Params> for BigDecimal {
+    fn from(value: Params) -> Self {
+        match value {
+            Params::Decimal(val) => val,
+            _ => panic!("Cannot convert {:?} to BigDecimal", value)
+        }
+    }
+}
+
+/// Converts `Params` to `String`.
+///
+/// # Panics
+/// Panics if the `Params` variant is not `Params::Text`.
+impl From<Params> for String {
+    fn from(value: Params) -> Self {
+        match value {
+            Params::Text(val) => val,
+            _ => panic!("Cannot convert {:?} to String", value)
+        }
+    }
+}
+
+/// Converts `Params` to `Vec<u8>`.
+///
+/// # Panics
+/// Panics if the `Params` variant is not `Params::ByteArray`.
+impl From<Params> for Vec<u8> {
+    fn from(value: Params) -> Self {
+        match value {
+            Params::ByteArray(val) => val,
+            _ => panic!("Cannot convert {:?} to Vec<u8>", value)
+        }
+    }
+}
+
 /// Implements conversion from Params to `Vec<Params>`.
 /// 
 /// This implementation allows converting an Array parameter
@@ -634,7 +716,7 @@ impl Params {
 /// 
 /// # Panics
 /// Panics if the parameter is not an Array type
-impl<'a> Into<Vec<Params>> for Params {
+impl Into<Vec<Params>> for Params {
     fn into(self) -> Vec<Params> {
         match self {
             Params::Array(array) => array,
@@ -650,7 +732,7 @@ impl<'a> Into<Vec<Params>> for Params {
 /// 
 /// # Panics
 /// Panics if the parameter is not a Dict type
-impl<'a> Into<BTreeMap<String, Params>> for Params {
+impl Into<BTreeMap<String, Params>> for Params {
     fn into(self) -> BTreeMap<String, Params> {
         match self {
             Params::Dict(dict) => dict,

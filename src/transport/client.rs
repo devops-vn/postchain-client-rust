@@ -69,7 +69,7 @@ impl<'a> Default for RestClient<'a> {
 
 /// Types of errors that can occur during REST operations
 #[derive(Debug)]
-enum TypeError {
+pub enum TypeError {
     /// Error from the reqwest client
     FromReqClient,
     /// Error from the REST API
@@ -80,13 +80,13 @@ enum TypeError {
 #[derive(Debug)]
 pub struct RestError {
     /// HTTP status code if available
-    status_code: Option<String>,
+    pub status_code: Option<String>,
     /// Error message if available
-    error_str: Option<String>,
+    pub error_str: Option<String>,
     /// JSON error response if available
-    error_json: Option<Value>,
+    pub error_json: Option<Value>,
     /// Type of error that occurred
-    type_error: TypeError,
+    pub type_error: TypeError,
 }
 
 impl Error for RestError {}
@@ -358,13 +358,13 @@ impl<'a> RestClient<'a> {
     ///
     /// # Returns
     /// * `Result<RestResponse, RestError>` - Query response or error
-    pub async fn query(
+    pub async fn query<T: AsRef<str>>(
         &self,
         brid: &str,
         query_prefix: Option<&str>,
         query_type: &'a str,
         query_params: Option<&'a mut Vec<(&'a str, &'a str)>>,
-        query_args: Option<&'a mut Vec<(&str, crate::utils::operation::Params)>>,
+        query_args: Option<&'a mut Vec<(T, crate::utils::operation::Params)>>,
     ) -> Result<RestResponse, RestError> {
         let mut query_prefix_str = "query_gtv";
 
@@ -372,8 +372,14 @@ impl<'a> RestClient<'a> {
             query_prefix_str = val;
         }
 
-        let encode_str = crate::encoding::gtv::encode(query_type, query_args);
+        let mut query_args_converted: Option<Vec<(&str, crate::utils::operation::Params)>> = query_args.map(|args| {
+            args.iter()
+                .map(|(key, params)| (key.as_ref(), params.clone()))
+                .collect()
+        });
 
+        let encode_str = crate::encoding::gtv::encode(query_type, query_args_converted.as_mut().map(|v| v.as_mut()));      
+        
         tracing::info!("Querying {} to {}", query_type, brid); 
 
         self.postchain_rest_api(

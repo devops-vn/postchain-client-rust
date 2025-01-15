@@ -12,7 +12,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-postchain-client = "0.0.1"
+postchain-client = "0.0.2"
 tokio = { version = "1.42.0", features = ["rt"] }
 ```
 
@@ -20,7 +20,7 @@ tokio = { version = "1.42.0", features = ["rt"] }
 
 ```toml
 [dependencies]
-postchain-client = "0.0.1"
+postchain-client = "0.0.2"
 tokio = { version = "1.42.0", features = ["rt"] }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
@@ -79,18 +79,16 @@ async fn execute_query_with_struct(client: &RestClient<'_>) -> Result<(), Box<dy
         arg2: String
     }
 
-    let query_arguments = Params::from_struct_to_vec(&QueryArguments {
+    let mut query_arguments = Params::from_struct_to_vec(&QueryArguments {
         arg1: "value1".to_string(), arg2: "value2".to_string()
     });
-
-    let mut query_arguments_ref: Vec<(&str, Params)> = query_arguments.iter().map(|v| (v.0.as_str(), v.1.clone())).collect();
 
     let result = client.query(
         "<BLOCKCHAIN_RID>",
         None,
         query_type,
         None,
-        Some(&mut query_arguments_ref)
+        Some(&mut query_arguments)
     ).await?;
 
     if let RestResponse::Bytes(val1) = result {
@@ -316,6 +314,8 @@ Start a simple Rust application to interact with the book-review blockchain:
 $ cd examples/book-review/client
 $ cargo run
 ```
+
+### Other examples: https://github.com/cuonglb/postchain-client-rust/tree/dev/examples/for-docs
 
 ## Contributing
 
