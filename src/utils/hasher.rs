@@ -241,45 +241,37 @@ impl<'a> BinaryTreeFactory {
     /// # Note
     /// The resulting tree preserves the order of array elements in the leaf nodes
     fn process_array_node(params: Box<Params>) -> Result<Box<BinaryTreeNode>, HashError> {
-        if params.clone().is_empty() {
-            let left= BinaryTreeNode::new_leaf(None, true);
-            let right= BinaryTreeNode::new_leaf(None, true);
-            let value = Box::new(Params::Array(vec![]));
-            let node = BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::ArrayNode);
-            return Ok(Box::new(node));
-        }
-
-        if let Params::Array(array_value) = *params {
-            let mut leaves = Vec::new();
-
-            for value in array_value.clone() {
-                leaves.push(Self::build_tree(Box::new(value))?);
+        if let Params::Array(array_value) = &*params {
+            if array_value.is_empty() {
+                let left = BinaryTreeNode::new_leaf(None, true);
+                let right = BinaryTreeNode::new_leaf(None, true);
+                let value = Box::new(Params::Array(Vec::new()));
+                return Ok(Box::new(BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::ArrayNode)));
             }
+
+            let leaves: Result<Vec<_>, _> = array_value
+                .iter()
+                .map(|value| Box::new(value.clone()))
+                .map(Self::build_tree)
+                .collect();
+
+            let leaves = leaves?;
 
             let value = Box::new(Params::Array(array_value.clone()));
-            let len = array_value.len();
 
-            if leaves.len() == 1 {
-                let left = leaves[0].clone();
-                let right= BinaryTreeNode::new_leaf(None, true);
-                let node = BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::ArrayNode);
-                return Ok(Box::new(node));
-            }
+            let tree_root = if leaves.len() == 1 {
+                let left = leaves.into_iter().next().unwrap();
+                let right = BinaryTreeNode::new_leaf(None, true);
+                BinaryTreeNode::new_node(Some(left), Some(right), None, NodeType::Node)
+            } else {
+                *Self::process_layer(leaves)?
+            };
 
-            let tree_root = Self::process_layer(leaves)?;
-
-            if tree_root.clone().type_of_node == NodeType::Node {
-                let node = BinaryTreeNode::new_node(tree_root.clone().left, tree_root.right, Some(value), NodeType::ArrayNode);
-                return Ok(Box::new(node));
-            }
-
-            let left = tree_root;
-            let right= BinaryTreeNode::new_leaf(None, true);
-            let node = BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::ArrayNode);
-            return Ok(Box::new(node));
-        };
-        
-        Err(HashError::EmptyArray("Invalid array parameter provided".to_string()))
+            let node = BinaryTreeNode::new_node(tree_root.left, tree_root.right, Some(value), NodeType::ArrayNode);
+            Ok(Box::new(node))
+        } else {
+            Err(HashError::EmptyArray("Invalid array parameter provided".to_string()))
+        }
     }
 
     /// Processes a dictionary parameter into a Merkle tree node.
@@ -300,55 +292,42 @@ impl<'a> BinaryTreeFactory {
     /// # Note
     /// Dictionary entries are processed in sorted order by key to ensure consistent hashing
     fn process_dict_node(params: Box<Params>) -> Result<Box<BinaryTreeNode>, HashError> {
+        if let Params::Dict(dict_value) = &*params {
+            if dict_value.is_empty() {
+                let left = BinaryTreeNode::new_leaf(None, true);
+                let right = BinaryTreeNode::new_leaf(None, true);
+                let value = Box::new(Params::Dict(std::collections::BTreeMap::new()));
+                return Ok(Box::new(BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::DictNode)));
+            }
 
-        if params.clone().is_empty() {
-            let left= BinaryTreeNode::new_leaf(None, true);
-            let right= BinaryTreeNode::new_leaf(None, true);
-            let value = Box::new(Params::Array(vec![]));
-            let node = BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::DictNode);
-            return Ok(Box::new(node));            
-        }
+            let leaves: Result<Vec<_>, _> = dict_value
+                .iter()
+                .flat_map(|(key, value)| {
+                    let key_leaf = BinaryTreeNode::new_leaf(Some(Box::new(Params::Text(key.clone()))), false);
+                    let value_tree = Self::build_tree(Box::new(value.clone()));
+                    match value_tree {
+                        Ok(tree) => vec![Ok(key_leaf), Ok(tree)],
+                        Err(err) => vec![Err(err)],
+                    }
+                })
+                .collect();
 
-        if let Params::Dict(dict_value) = *params {
-            let mut leaves = Vec::new();
-
+            let leaves = leaves?;
             let value = Box::new(Params::Dict(dict_value.clone()));
-            let len = dict_value.len();
 
-            for (key, value) in dict_value {
-                leaves.push(BinaryTreeNode::new_leaf(Some(Box::new(Params::Text(key.to_string()))), false));
-                leaves.push(Self::build_tree(Box::new(value))?);
-            }
+            let tree_root = if leaves.len() == 1 {
+                let left = leaves.into_iter().next().unwrap();
+                let right = BinaryTreeNode::new_leaf(None, true);
+                BinaryTreeNode::new_node(Some(left), Some(right), None, NodeType::Node)
+            } else {
+                *Self::process_layer(leaves)?
+            };
 
-            let tree_root = Self::process_layer(leaves)?;
-
-            if tree_root.clone().type_of_node == NodeType::Node {
-                let node = BinaryTreeNode::new_node(tree_root.clone().left, tree_root.right, Some(value), NodeType::DictNode);
-                return Ok(Box::new(node));
-            }
-
-            let left = tree_root;
-            let right= BinaryTreeNode::new_leaf(None, true);
-            let node = BinaryTreeNode::new_node(Some(left), Some(right), Some(value), NodeType::DictNode);
-            return Ok(Box::new(node));
+            let node = BinaryTreeNode::new_node(tree_root.left, tree_root.right, Some(value), NodeType::DictNode);
+            Ok(Box::new(node))
+        } else {
+            Err(HashError::EmptyDict("Invalid dictionary parameter provided".to_string()))
         }
-        
-        Err(HashError::EmptyDict("Invalid dictionary parameter provided".to_string()))
-    }
-
-    /// Creates a leaf node from a parameter value.
-    /// 
-    /// Converts a GTV parameter into a leaf node in the Merkle tree.
-    /// The value is stored directly in the node and will be hashed
-    /// with a leaf prefix (1) during hash calculation.
-    /// 
-    /// # Arguments
-    /// * `params` - Box containing the parameter value to store in the leaf
-    /// 
-    /// # Returns
-    /// A new boxed BinaryTreeNode configured as a leaf node containing the parameter value
-    fn process_leaf(params: Box<Params>) -> Box<BinaryTreeNode> {
-        BinaryTreeNode::new_leaf(Some(params), false)
     }
 
     /// Builds a complete Merkle tree from a parameter value.
@@ -374,7 +353,7 @@ impl<'a> BinaryTreeFactory {
             Params::Dict(_) =>
                 Self::process_dict_node(params),
             _ =>
-                Ok(Self::process_leaf(params))
+                Ok(BinaryTreeNode::new_leaf(Some(params), false))
         }
     }
 }
