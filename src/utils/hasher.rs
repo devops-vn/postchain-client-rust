@@ -205,25 +205,23 @@ impl<'a> BinaryTreeFactory {
         }
 
         if leaves.len() == 1 {
-            return Ok(leaves[0].clone());
+            return Ok(leaves.into_iter().next().unwrap());
         }
 
-        let mut results= Vec::new();
-        let mut i: usize = 0;
+        let results = leaves.chunks(2)
+            .map(|chunk| {
+                if chunk.len() == 2 {
+                    let left = chunk[0].clone();
+                    let right = chunk[1].clone();
+                    BinaryTreeNode::new_node(Some(left), Some(right), None, NodeType::Node)
+                } else {
+                    *chunk[0].clone()
+                }
+            })
+            .map(Box::new)
+            .collect::<Vec<_>>();
 
-         while i < leaves.len() - 1 {
-            let left = leaves[i].clone();
-            let right = leaves[i + 1].clone();
-            let node = BinaryTreeNode::new_node(Some(left), Some(right), None, NodeType::Node);
-            results.push(Box::new(node));
-            i += 2;
-        }
-
-        if i < leaves.len() {
-            results.push(Box::new(*leaves[i].clone()));
-        }
-
-        return Self::process_layer(results);
+        Self::process_layer(results)
     }
 
     /// Processes an array parameter into a Merkle tree node.
