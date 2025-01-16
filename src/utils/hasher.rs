@@ -376,11 +376,11 @@ impl MerkleHashCalculator {
     /// * `data` - Slice of bytes to hash
     /// 
     /// # Returns
-    /// A Vec<u8> containing the 32-byte SHA-256 hash value
-    fn sha256(data: &[u8]) -> Vec<u8> {
+    /// A fixed-size array containing the 32-byte SHA-256 hash value
+    fn sha256(data: &[u8]) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(data);
-        hasher.finalize().to_vec()
+        hasher.finalize().into()
     }
 
     /// Calculates hash for a leaf node.
@@ -394,14 +394,15 @@ impl MerkleHashCalculator {
     /// * `value` - Optional parameter value to hash. Must be Some for non-empty leaves
     /// 
     /// # Returns
-    /// A Vec<u8> containing the 32-byte hash of the leaf node
+    /// A fixed-size array containing the 32-byte hash of the leaf node
     /// 
     /// # Note
     /// The leaf prefix ensures leaf node hashes are distinct from internal node hashes
-    fn calculate_leaf_hash(value: Option<Box<Params>>) -> Vec<u8> {
-        let mut buffer = vec![HASH_PREFIX_LEAF];
-        let encode_value = gtv_encode_value(&value.unwrap());
-        buffer.extend_from_slice(&encode_value);
+    fn calculate_leaf_hash(value: &Params) -> [u8; 32] {
+        let gev = gtv_encode_value(value);
+        let mut buffer = Vec::with_capacity(1 + gev.len());
+        buffer.push(HASH_PREFIX_LEAF);
+        buffer.extend_from_slice(&gev);
         Self::sha256(&buffer)
     }
 
@@ -421,14 +422,15 @@ impl MerkleHashCalculator {
     /// * `right` - 32-byte hash of the right child
     /// 
     /// # Returns
-    /// A Vec<u8> containing the 32-byte hash of the internal node
+    /// A fixed-size array containing the 32-byte hash of the internal node
     /// 
     /// # Note
     /// Different prefixes ensure unique hashes for different node types
-    fn calculate_node_hash(has_prefix: u8, left: Vec<u8>, right: Vec<u8>) -> Vec<u8> {
-        let mut buffer = vec![has_prefix];
-        buffer.extend_from_slice(&left); 
-        buffer.extend_from_slice(&right);
+    fn calculate_node_hash(has_prefix: u8, left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+        let mut buffer = [0u8; 65];
+        buffer[0] = has_prefix;
+        buffer[1..33].copy_from_slice(&left);
+        buffer[33..].copy_from_slice(&right);
         Self::sha256(&buffer)
     }
 
@@ -445,30 +447,26 @@ impl MerkleHashCalculator {
     /// * `btn` - Root node of the tree or subtree to hash
     /// 
     /// # Returns
-    /// A Vec<u8> containing the 32-byte Merkle hash of the tree/subtree
+    /// A fixed-size array containing the 32-byte Merkle hash of the tree/subtree
     /// 
     /// # Note
     /// The hash computation preserves the structural properties of the tree
-    fn calculate_merkle_hash(btn: Box<BinaryTreeNode>) -> Vec<u8>{
-        if btn.type_of_node == NodeType::EmptyLeaf {
-            return [0; 32].to_vec();
+    fn calculate_merkle_hash(btn: &BinaryTreeNode) -> [u8; 32] {
+        match &btn.type_of_node {
+            NodeType::EmptyLeaf => [0; 32],
+            NodeType::Leaf => Self::calculate_leaf_hash(btn.value.as_ref().unwrap()),
+            NodeType::ArrayNode | NodeType::DictNode | NodeType::Node => {
+                let has_prefix = match btn.type_of_node {
+                    NodeType::ArrayNode => HASH_PREFIX_NODE_ARRAY,
+                    NodeType::DictNode => HASH_PREFIX_NODE_DICT,
+                    _ => HASH_PREFIX_NODE,
+                };
+                let left_hash = btn.left.as_ref().map(|left| Self::calculate_merkle_hash(left)).unwrap_or([0; 32]);
+                let right_hash = btn.right.as_ref().map(|right| Self::calculate_merkle_hash(right)).unwrap_or([0; 32]);
+
+                Self::calculate_node_hash(has_prefix, left_hash, right_hash)
+            }
         }
-
-        if btn.type_of_node == NodeType::Leaf {
-            return Self::calculate_leaf_hash(btn.value);
-        }
-
-        let has_prefix = match btn.type_of_node {
-            NodeType::ArrayNode => HASH_PREFIX_NODE_ARRAY,
-            NodeType::DictNode => HASH_PREFIX_NODE_DICT,
-            _ => HASH_PREFIX_NODE
-        };
-
-        return Self::calculate_node_hash(
-            has_prefix,
-            Self::calculate_merkle_hash(btn.left.unwrap()),
-            Self::calculate_merkle_hash(btn.right.unwrap())
-        )
     }
 }
 
@@ -489,7 +487,7 @@ impl MerkleHashCalculator {
 /// * `value` - GTV parameter to hash (can be array, dictionary, or primitive value)
 /// 
 /// # Returns
-/// * `Ok(Vec<u8>)` - 32-byte SHA-256 hash of the parameter
+/// * `Ok([u8; 32])` - A fixed-size array 32-byte SHA-256 hash of the parameter
 /// * `Err(HashError)` - If processing fails due to invalid input
 /// 
 /// # Examples
@@ -521,10 +519,9 @@ impl MerkleHashCalculator {
 /// // Compute hash
 /// let hash = gtv_hash(data).unwrap();
 /// ```
-pub fn gtv_hash(value: Params) -> Result<Vec<u8>, HashError> {
+pub fn gtv_hash(value: Params) -> Result<[u8; 32], HashError> {
     let tree = BinaryTreeFactory::build_tree(Box::new(value))?;
-    let hash_value = MerkleHashCalculator::calculate_merkle_hash(tree);
-    return Ok(hash_value);
+    Ok(MerkleHashCalculator::calculate_merkle_hash(&tree))
 }
 
 #[test]

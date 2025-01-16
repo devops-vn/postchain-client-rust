@@ -116,8 +116,8 @@ impl<'a> Transaction<'a> {
     /// of the transaction using the GTX hash function.
     /// 
     /// # Returns
-    /// Vector of bytes containing the transaction RID
-    pub fn tx_rid(&self) -> Result<Vec<u8>, hasher::HashError> {
+    /// A fixed-size 32 bytes containing the transaction RID
+    pub fn tx_rid(&self) -> Result<[u8; 32], hasher::HashError> {
         let to_draw_gtx = gtv::to_draw_gtx(self);
         gtv_hash(to_draw_gtx)
     }
