@@ -315,7 +315,9 @@ $ cd examples/book-review/client
 $ cargo run
 ```
 
-### Other examples: https://github.com/cuonglb/postchain-client-rust/tree/dev/examples/for-docs
+### Other
+
+https://github.com/cuonglb/postchain-client-rust/tree/dev/examples/for-docs
 
 ## Contributing
 
