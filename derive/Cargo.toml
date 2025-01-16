@@ -2,6 +2,9 @@
 name = "postchain-client-derive"
 version = "0.0.1"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Chromia Postchain client derive."
+repository = "https://github.com/cuonglb/postchain-client-rust/"
 
 [lib]
 proc-macro = true
