@@ -139,13 +139,22 @@ let mut tx = Transaction::new(
     None                        // signatures (optional)
 );
 
-// Sign transaction with private key
-let private_key = [0u8; 64];  // Your private key bytes
-tx.sign(&private_key)?;
+// Sign the transaction
+let private_key1 = "C70D5A77CC10552019179B7390545C46647C9FCA1B6485850F2B913F87270300";  // Replace with actual private key
+tx.sign(&hex::decode(private_key1).unwrap().try_into().expect("Invalid private key 1")).expect("Failed to sign transaction");
 
-// Or sign with multiple private keys
-let private_keys = vec![&private_key1, &private_key2];
-tx.multi_sign(&private_keys)?;
+// Multi sign the transaction
+let private_key2 = "17106092B72489B785615BD2ACB2DDE8D0EA05A2029DCA4054987494781F988C";  // Replace with actual private key
+tx.sign(&[
+    &hex::decode(private_key1).unwrap().try_into().expect("Invalid private key 1"),
+    &hex::decode(private_key2).unwrap().try_into().expect("Invalid private key 2")
+    ]).expect("Failed to multi sign transaction");
+
+// Sign the transaction from raw private key
+tx.sign_from_raw_priv_key(private_key1);
+
+// Multi sign the transaction from raw private keys
+tx.multi_sign_from_raw_priv_keys(&[private_key1, private_key2]);
 ```
 
 #### 3.3 Sending Transactions

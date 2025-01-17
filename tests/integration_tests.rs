@@ -127,11 +127,11 @@ async fn initialize_rest_client() -> (String, RestClient<'static>) {
     brid_info
 }
 
-fn read_private_key_from_env_var() -> [u8; 64] {
+fn read_private_key_from_env_var() -> [u8; 32] {
     match std::env::var("PRIV_KEY") {
         Ok(value) => {
-            let bytes = hex::decode(hex::encode(value)).unwrap();
-            let mut array = [0u8; 64];
+            let bytes = hex::decode(value).unwrap();
+            let mut array = [0u8; 32];
             array.copy_from_slice(&bytes);
             array
         }

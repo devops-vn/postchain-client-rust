@@ -111,7 +111,7 @@ async fn send_unsign_transaction(rc: &RestClient<'_>, brid: &str) {
     }
 }
 
-async fn send_sign_transaction(rc: &RestClient<'_>, brid: &str, privkey: &[u8; 64]) {
+async fn send_sign_transaction(rc: &RestClient<'_>, brid: &str, privkey: &str) {
     let operations = vec![
         Operation::from_list("setBoolean", vec![
             Params::Boolean(true)
@@ -127,7 +127,7 @@ async fn send_sign_transaction(rc: &RestClient<'_>, brid: &str, privkey: &[u8; 6
         ..Default::default()
     };
 
-    if let Err(error) = tx.sign(&privkey) {
+    if let Err(error) = tx.sign_from_raw_priv_key(privkey) {
         println!("TX sign error {:?}", error);
         return
     }
@@ -141,7 +141,7 @@ async fn send_sign_transaction(rc: &RestClient<'_>, brid: &str, privkey: &[u8; 6
     }
 }
 
-async fn send_multi_sign_transaction(rc: &RestClient<'_>, brid: &str, privkeys: Vec<&[u8; 64]>) {
+async fn send_multi_sign_transaction(rc: &RestClient<'_>, brid: &str, privkeys: &[&str]) {
     let operations = vec![
         Operation::from_list("setBoolean", vec![
             Params::Boolean(true)
@@ -157,7 +157,7 @@ async fn send_multi_sign_transaction(rc: &RestClient<'_>, brid: &str, privkeys: 
         ..Default::default()
     };
 
-    if let Err(error) = tx.multi_sign(&privkeys) {
+    if let Err(error) = tx.multi_sign_from_raw_priv_keys(&privkeys) {
         println!("TX multi sign error {:?}", error);
         return
     }
@@ -187,9 +187,11 @@ async fn main() {
     do_query_gtv_using_params_2(&rc, &my_chain).await;
     do_query_gtv_using_struct_and_handle_query_respose(&rc, &dc_chain).await;
     send_unsign_transaction(&rc, &my_chain).await;
-    send_sign_transaction(&rc, &my_chain, b"76C4ADC***").await;
-    send_multi_sign_transaction(&rc, &my_chain, vec![
-        b"76C4ADC***",
-        b"B874CBC***"
+    send_sign_transaction(&rc, &my_chain,
+        "76C4AD***" // Replace with actual private key
+    ).await;
+    send_multi_sign_transaction(&rc, &my_chain, &[
+        "76C4AD***", // Replace with actual private key
+        "CCB973***" // Replace with actual private key
     ]).await;
 }
