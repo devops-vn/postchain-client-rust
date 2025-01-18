@@ -12,7 +12,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-postchain-client = "0.0.2"
+postchain-client = "0.0.3"
 tokio = { version = "1.42.0", features = ["rt"] }
 ```
 
@@ -20,15 +20,11 @@ tokio = { version = "1.42.0", features = ["rt"] }
 
 ```toml
 [dependencies]
-postchain-client = "0.0.2"
+postchain-client = "0.0.3"
 tokio = { version = "1.42.0", features = ["rt"] }
 serde = { version = "1.0.216", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 ```
-
-## Documentation for `postchain_client` latest crate
-
-https://docs.rs/postchain-client/latest/postchain_client/
 
 ## Usage Guide
 
@@ -323,6 +319,10 @@ Start a simple Rust application to interact with the book-review blockchain:
 $ cd examples/book-review/client
 $ cargo run
 ```
+
+### Documentation for `postchain_client` latest crate
+
+https://docs.rs/postchain-client/latest/postchain_client/
 
 ### Other
 
