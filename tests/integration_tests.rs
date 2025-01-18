@@ -377,6 +377,17 @@ async fn queries_integration_test_success_cases() {
     )
     .await;
 
+    // query negative big integer
+    let data = num_bigint::BigInt::from_str("-1234567890123456789").unwrap();
+    assert_roundtrips(
+        &rc,
+        &brid,
+        "test_big_integer",
+        Some(&mut vec![("arg1", QueryParams::BigInteger(data))]),
+        "a60a0208eeddef0b82167eeb",
+    )
+    .await;
+
     // query array
     let data = &mut vec![(
         "arg1",

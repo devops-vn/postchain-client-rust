@@ -113,7 +113,15 @@ impl<'a> GTVParams for Params {
                 Params::Text(val) => Choice::UTF8STRING(asn1::Utf8String::new(val)),
                 Params::ByteArray(val) => Choice::OCTETSTRING(&val),
                 Params::BigInteger(val) => {
-                    bigint_to_vec_u8 = val.to_bytes_be().1;
+                    let (sign, bytes) = val.to_bytes_be();
+
+                    if sign == num_bigint::Sign::Minus {
+                      let bytes1 = val.to_signed_bytes_be();
+                      bigint_to_vec_u8 = bytes1;
+                    } else {
+                      bigint_to_vec_u8 = bytes;
+                    }
+
                     Choice::BIGINTEGER(asn1::BigInt::new(bigint_to_vec_u8.as_slice()).unwrap())
                 }
                 _ => Choice::NULL(())
@@ -307,10 +315,12 @@ fn decode_simple(choice: Choice) -> Params {
       Choice::INTEGER(val) =>
         Params::Integer(val),
       Choice::BIGINTEGER(val) => {
-        Params::BigInteger(
-          num_bigint::BigInt::from_bytes_be(
-            if val.is_negative() { num_bigint::Sign::Minus } else { num_bigint::Sign::Plus }, 
-            val.as_bytes().try_into().unwrap()))
+        let result = if val.is_negative() {
+          num_bigint::BigInt::from_signed_bytes_be(val.as_bytes().try_into().unwrap())
+        } else {
+          num_bigint::BigInt::from_bytes_be(num_bigint::Sign::Plus, val.as_bytes().try_into().unwrap())
+        };
+        Params::BigInteger(result)
       },
       Choice::OCTETSTRING(val) =>
         Params::ByteArray(val.to_vec()),
@@ -711,6 +721,20 @@ fn gtv_test_sequence_with_negative_big_integer() {
   let data = num_bigint::BigInt::from_str(min_i128.to_string().as_str()).unwrap();
   assert_roundtrips(Some(&mut vec![("foo", Params::BigInteger(data))]), 
   "a41d301b30190c03666f6fa612021080000000000000000000000000000000");
+
+  let h_data = "a41d301b30190c03666f6fa6120210ff123b1a8199614ad13ab29a33fba0eb";
+
+  let data = num_bigint::BigInt::from_str("-1234567890123456789123456789123456789").unwrap();
+  assert_roundtrips(Some(&mut vec![("foo", Params::BigInteger(data.clone()))]), 
+  h_data);
+
+  let hex_decode_data = hex::decode(h_data).unwrap();
+  let result = decode(&hex_decode_data).unwrap();
+
+  if let Params::Dict(dict) = result {
+    let bi: num_bigint::BigInt = dict["foo"].clone().into();
+    assert_eq!(data, bi);
+  }
 }
 
 #[test]
