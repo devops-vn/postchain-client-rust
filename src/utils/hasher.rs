@@ -548,3 +548,15 @@ fn test_gtv_hash() {
     assert_eq!("6357d3200e0dfb1bce5f3eb789714842747b39810248f83dba6382c7e7020e20", hex::encode(result1));
     assert_eq!("9f3d80d08a942b86e20932ad74356703dba7ba78b792f2d6ad93201ab9a71bab", hex::encode(result2));
 }
+
+#[test]
+fn test_gtv_hash_v2() {
+    let data1 = Params::Array(vec![Params::Text("a".to_string())]);
+    let data2 = Params::Array(vec![Params::Array(vec![Params::Text("a".to_string())])]);
+
+    let result1 = gtv_hash(data1).unwrap();
+    let result2 = gtv_hash(data2).unwrap();
+
+    assert_eq!(hex::encode(result1), "5ad2414edcd34b9a8bdc22921b8a1b8cef6cab04115dd0e7eb000b05353b315a");
+    assert_eq!(hex::encode(result2), "19605d1044cc20248e315f98f2d4c4aa7adfe6861607a0d000641837c3b962f8");
+}
