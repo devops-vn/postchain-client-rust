@@ -136,7 +136,7 @@ struct BinaryTreeNode {
     type_of_node: NodeType
 }
 
-impl<'a> Default for BinaryTreeNode {
+impl Default for BinaryTreeNode {
     fn default() -> Self {
         BinaryTreeNode {
             left: None,
@@ -147,7 +147,7 @@ impl<'a> Default for BinaryTreeNode {
     }
 }
 
-impl<'a> BinaryTreeNode {
+impl BinaryTreeNode {
     /// Creates a new internal node with specified children, value, and type.
     /// 
     /// # Arguments
@@ -182,7 +182,7 @@ impl<'a> BinaryTreeNode {
 #[derive(Clone, Debug)]
 struct BinaryTreeFactory;
 
-impl<'a> BinaryTreeFactory {
+impl BinaryTreeFactory {
     /// Processes a layer of nodes in the Merkle tree construction.
     /// 
     /// This function implements the core Merkle tree building logic by:
