@@ -158,19 +158,17 @@ impl<'a> RestClient<'a> {
             .await;
 
         match resp {
-            Ok(val) => match val {
-                RestResponse::Json(json_val) => {
-                    let list_of_nodes = json_val
-                        .as_array()
-                        .unwrap()
-                        .iter()
-                        .filter_map(|value| value.as_str().map(String::from))
-                        .collect();
-                    Ok(list_of_nodes)
-                }
-                RestResponse::String(str_val) => Ok(vec![str_val]),
-                _ => Ok(vec!["nop".to_string()]),
-            },
+            Ok(RestResponse::Json(json_val)) => {
+                let list_of_nodes = json_val
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|value| value.as_str().map(String::from))
+                    .collect();
+                Ok(list_of_nodes)
+            }
+            Ok(RestResponse::String(str_val)) => Ok(vec![str_val]),
+            Ok(_) => Ok(vec!["nop".to_string()]),
             Err(error) => {
                 tracing::error!("Can't get API urls from DC chain: {} because of error: {:?}", brid, error);
                 Err(error)
@@ -285,7 +283,7 @@ impl<'a> RestClient<'a> {
                 let status: serde_json::Map<String, Value> = serde_json::from_value(val).unwrap();
                 if let Some(status_value) = status.get("status") {
                     let status_value = status_value.as_str();
-                    let status_code = match status_value {
+                    match status_value {
                         Some("waiting") => {
                             // Waiting for transaction rejected or confirmed!!!
                             // Interval time = 5 secs on each attempt
@@ -295,15 +293,14 @@ impl<'a> RestClient<'a> {
                         },
                         Some("confirmed") => {
                             tracing::info!("Transaction confirmed!");
-                            Ok(TransactionStatus::CONFIRMED)
+                            return Ok(TransactionStatus::CONFIRMED)
                         },
                         Some("rejected") => {
                             tracing::warn!("Transaction rejected!");
-                            Ok(TransactionStatus::REJECTED)
+                            return Ok(TransactionStatus::REJECTED)
                         },
-                        _ => Ok(TransactionStatus::UNKNOWN)
+                        _ => return Ok(TransactionStatus::UNKNOWN)
                     };
-                    return status_code
                 }
                 Ok(TransactionStatus::UNKNOWN)
             }
@@ -366,11 +363,7 @@ impl<'a> RestClient<'a> {
         query_params: Option<&'a mut Vec<(&'a str, &'a str)>>,
         query_args: Option<&'a mut Vec<(T, crate::utils::operation::Params)>>,
     ) -> Result<RestResponse, RestError> {
-        let mut query_prefix_str = "query_gtv";
-
-        if let Some(val) = query_prefix {
-            query_prefix_str = val;
-        }
+        let query_prefix_str = query_prefix.unwrap_or("query_gtv");
 
         let mut query_args_converted: Option<Vec<(&str, crate::utils::operation::Params)>> = query_args.map(|args| {
             args.iter()
@@ -419,10 +412,11 @@ impl<'a> RestClient<'a> {
             if let Err(ref error) = result {
                 node_index += 1;
 
-                if node_index < self.node_url.len() && error.status_code.is_none() {
-                    tracing::info!("The API endpoint can't be reached; will try another one!");
-                    continue;
+                if node_index >= self.node_url.len() || error.status_code.is_some() {
+                    return result;
                 }
+                tracing::info!("The API endpoint can't be reached; will try another one!");
+                continue;
             }
             return result;
         }
