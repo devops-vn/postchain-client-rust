@@ -466,7 +466,7 @@ impl Params {
 
         if let serde_json::Value::Object(map) = value {
             for (key, val) in map {
-                let f_type = fnat.get(&key).cloned(); 
+                let f_type = fnat.get(&key).cloned();
                 dict.insert(key, Self::value_to_params(val, f_type));
             }
         }
@@ -500,7 +500,7 @@ impl Params {
 
         if let serde_json::Value::Object(map) = json_value {
             for (key, val) in map {
-                let f_type = fnat.get(&key).cloned(); 
+                let f_type = fnat.get(&key).cloned();
                 vec.push(Self::value_to_params(val, f_type));
             }
         }
