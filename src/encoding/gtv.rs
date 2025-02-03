@@ -67,68 +67,55 @@ pub fn write_explicit_element<T: asn1::Asn1Writable>(writer: &mut asn1::Writer, 
   writer.write_tlv(tag, |dest| asn1::Writer::new(dest).write_element(val))
 }
 
-#[allow(unused_assignments)]
 impl<'a> GTVParams for Params {
     fn to_writer(&self, writer: &mut asn1::Writer) -> asn1::WriteResult {
-        if let Params::Array(val) = self {
-            write_explicit_element(writer,
-                &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
-                    for v in val {
-                        v.to_writer(writer)?;
-                    }
-                    Ok(())
-                }),
-                5,
-            )?;
-            Ok(())
-        } else if let Params::Dict(val) = self {
-            write_explicit_element(writer,
-                &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
-                    for v in val {
-                        writer.write_element(&asn1::SequenceWriter::new(
-                            &|writer: &mut asn1::Writer| {
-                                writer.write_element(&asn1::Utf8String::new(v.0))?;
-                                v.1.to_writer(writer)?;
-                                Ok(())
-                            },
-                        ))?;
-                    }
-
-                    Ok(())
-                }),
-                4,
-            )?;
-            Ok(())
-        } else {
-            let mut decimal_to_string = String::new();
-            let mut bigint_to_vec_u8: Vec<u8> = Vec::new();
-
-            let gtv_choice = match self {
-                Params::Integer(val) => Choice::INTEGER(*val),
-                Params::Boolean(val) => Choice::INTEGER(*val as i64),
-                Params::Decimal(val) => {
-                    decimal_to_string = val.to_string();
-                    Choice::UTF8STRING(asn1::Utf8String::new(decimal_to_string.as_str()))
-                }
-                Params::Text(val) => Choice::UTF8STRING(asn1::Utf8String::new(val)),
-                Params::ByteArray(val) => Choice::OCTETSTRING(&val),
-                Params::BigInteger(val) => {
-                    let (sign, bytes) = val.to_bytes_be();
-
-                    if sign == num_bigint::Sign::Minus {
-                      let bytes1 = val.to_signed_bytes_be();
-                      bigint_to_vec_u8 = bytes1;
-                    } else {
-                      bigint_to_vec_u8 = bytes;
-                    }
-
-                    Choice::BIGINTEGER(asn1::BigInt::new(bigint_to_vec_u8.as_slice()).unwrap())
-                }
-                _ => Choice::NULL(())
-            };
-
-            writer.write_element(&gtv_choice)?;
-            Ok(())
+        match self {
+            Params::Array(val) => {
+                write_explicit_element(writer,
+                    &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
+                        for v in val {
+                            v.to_writer(writer)?;
+                        }
+                        Ok(())
+                    }),
+                    5,
+                )
+            }
+            Params::Dict(val) => {
+                write_explicit_element(writer,
+                    &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
+                        for v in val {
+                            writer.write_element(&asn1::SequenceWriter::new(
+                                &|writer: &mut asn1::Writer| {
+                                    writer.write_element(&asn1::Utf8String::new(v.0))?;
+                                    v.1.to_writer(writer)?;
+                                    Ok(())
+                                },
+                            ))?;
+                        }
+                        Ok(())
+                    }),
+                    4,
+                )
+            }
+            Params::Integer(val) => writer.write_element(&Choice::INTEGER(*val)),
+            Params::Boolean(val) => writer.write_element(&Choice::INTEGER(*val as i64)),
+            Params::Decimal(val) => {
+                let decimal_to_string = val.to_string();
+                writer.write_element(&Choice::UTF8STRING(asn1::Utf8String::new(&decimal_to_string)))
+            }
+            Params::Text(val) => writer.write_element(&Choice::UTF8STRING(asn1::Utf8String::new(val))),
+            Params::ByteArray(val) => writer.write_element(&Choice::OCTETSTRING(val)),
+            Params::BigInteger(val) => {
+                let (sign, bytes) = val.to_bytes_be();
+                let bigint_to_vec_u8 = if sign == num_bigint::Sign::Minus {
+                    val.to_signed_bytes_be()
+                } else {
+                    bytes
+                };
+                writer.write_element(&Choice::BIGINTEGER(asn1::BigInt::new(&bigint_to_vec_u8).unwrap()))
+            }
+            _ => writer.write_element(&Choice::NULL(())),
         }
     }
 }
@@ -245,7 +232,7 @@ pub fn encode<'a>(
 fn encode_tx_body<'a>(writer: &mut asn1::Writer, operation: &Operation<'a>) -> asn1::WriteResult {
   write_explicit_element(writer, &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
     // Operation name
-    write_explicit_element(writer,&asn1::Utf8String::new(&operation.operation_name.unwrap()), 2)?;
+    write_explicit_element(writer,&asn1::Utf8String::new(operation.operation_name.as_ref().unwrap()), 2)?;
     // Operation args
     write_explicit_element(writer, &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
       if let Some(operation_args) = &operation.list {
@@ -263,8 +250,7 @@ fn encode_tx_body<'a>(writer: &mut asn1::Writer, operation: &Operation<'a>) -> a
       Ok(())
     }), 5)?;
     Ok(())
-  }), 5)?;
-  Ok(())
+  }), 5)
 }
 
 /// Encodes the body of a query
@@ -283,11 +269,10 @@ fn encode_body<'a>(writer: &mut asn1::Writer,
   write_explicit_element(writer,
       &asn1::SequenceWriter::new(&|writer: &mut asn1::Writer| {
           if let Some(q_args) = &query_args {
-              let q_args_as_slice = q_args.iter().as_slice();
-              for (q_type, q_args) in q_args_as_slice {
+              for (q_type, q_args) in q_args.iter() {
                   writer.write_element(&asn1::SequenceWriter::new(
                       &|writer: &mut asn1::Writer| {
-                          writer.write_element(&asn1::Utf8String::new(&q_type))?;
+                          writer.write_element(&asn1::Utf8String::new(q_type))?;
                           q_args.to_writer(writer)?;
                           Ok(())
                       },
@@ -297,8 +282,7 @@ fn encode_body<'a>(writer: &mut asn1::Writer,
           Ok(())
       }),
       4,
-  )?;
-  Ok(())
+  )
 }
 
 /// Decodes a simple GTV value from a Choice enum
@@ -316,9 +300,9 @@ fn decode_simple(choice: Choice) -> Params {
         Params::Integer(val),
       Choice::BIGINTEGER(val) => {
         let result = if val.is_negative() {
-          num_bigint::BigInt::from_signed_bytes_be(val.as_bytes().try_into().unwrap())
+          num_bigint::BigInt::from_signed_bytes_be(val.as_bytes())
         } else {
-          num_bigint::BigInt::from_bytes_be(num_bigint::Sign::Plus, val.as_bytes().try_into().unwrap())
+          num_bigint::BigInt::from_bytes_be(num_bigint::Sign::Plus, val.as_bytes())
         };
         Params::BigInteger(result)
       },
@@ -370,12 +354,8 @@ fn decode_sequence_array<'a>(parser: &mut asn1::Parser<'a>, vec_array: &mut Vec<
 /// * `parser` - The ASN.1 parser to read from
 /// * `btreemap` - BTreeMap to store the decoded key-value pairs
 fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeMap<String, Params>) {
-  loop {
-      let seq = parser.read_element::<asn1::Sequence>();
-      if let Err(_) = seq {
-          break;
-      }
-      let res: Result<(&'a str, Params), ParseError> = seq.unwrap().parse(|parser| {
+  while let Ok(seq) = parser.read_element::<asn1::Sequence>() {
+      let res: Result<(&'a str, Params), ParseError> = seq.parse(|parser| {
         let key = parser.read_element::<asn1::Utf8String>()?;
         let val = Choice::parse(parser).unwrap();
 
@@ -403,9 +383,8 @@ fn decode_sequence_dict<'a>(parser: &mut asn1::Parser<'a>, btreemap: &mut BTreeM
         Ok((key.as_str(), op_val))
       });
 
-      let res: (&'a str, Params) = res.unwrap();
-
-      btreemap.insert(res.0.to_string(), res.1);
+      let (key, value) = res.unwrap();
+      btreemap.insert(key.to_string(), value);
   }
 }
 
